@@ -37,7 +37,7 @@ jobs:
             .env.example
       
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: mcp-ai-memory-${{ github.ref_name }}.tar.gz
           generate_release_notes: true
