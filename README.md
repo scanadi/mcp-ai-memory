@@ -1,5 +1,8 @@
 # MCP AI Memory
 
+[![npm version](https://badge.fury.io/js/mcp-ai-memory.svg)](https://www.npmjs.com/package/mcp-ai-memory)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A production-ready Model Context Protocol (MCP) server for semantic memory management that enables AI agents to store, retrieve, and manage contextual knowledge across sessions.
 
 ## Features
