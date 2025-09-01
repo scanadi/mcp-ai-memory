@@ -172,7 +172,7 @@ export class CompressionService {
     // Add key sentences
     for (const paragraph of paragraphs) {
       if (keyWords.some((word) => paragraph.toLowerCase().includes(word))) {
-        compressed.push(paragraph.substring(0, 100) + '...');
+        compressed.push(`${paragraph.substring(0, 100)}...`);
       }
     }
 
@@ -198,7 +198,10 @@ export class CompressionService {
     const step = Math.floor(sentences.length / targetSentences);
 
     for (let i = 0; i < sentences.length; i += step) {
-      result.push(sentences[i]!.trim());
+      const sentence = sentences[i]?.trim();
+      if (sentence) {
+        result.push(sentence);
+      }
       if (result.length >= targetSentences) break;
     }
 
@@ -218,7 +221,8 @@ export class CompressionService {
 
       // Determine compression level based on age
       for (let i = 0; i < ageThresholds.length; i++) {
-        if (ageHours > ageThresholds[i]!) {
+        const threshold = ageThresholds[i];
+        if (threshold !== undefined && ageHours > threshold) {
           compressionLevel = i + 1;
         }
       }
@@ -276,6 +280,25 @@ export class CompressionService {
       memoriesCompressed: compressed.length,
       compressionTime: Date.now() - startTime,
     };
+  }
+
+  /**
+   * Decompress a single memory
+   */
+  async decompressMemory(memory: Memory): Promise<{ decompressedContent: string }> {
+    if (!memory.is_compressed) {
+      const content = typeof memory.content === 'string' ? memory.content : JSON.stringify(memory.content);
+      return { decompressedContent: content };
+    }
+
+    // For now, return the content as-is since we're storing JSON
+    // In a real implementation, you'd apply the reverse of compression algorithms
+    const content = typeof memory.content === 'string' ? memory.content : JSON.stringify(memory.content);
+
+    // If metadata indicates compression, we'd decompress here
+    // For now, the compression is mainly summarization, so we return the compressed version
+    // which is already human-readable
+    return { decompressedContent: content };
   }
 
   /**

@@ -13,8 +13,18 @@ export interface EmbeddingJob {
 export interface BatchImportJob {
   type: 'batch-import';
   memories: Array<{
-    type: string;
-    content: any;
+    type:
+      | 'error'
+      | 'fact'
+      | 'conversation'
+      | 'decision'
+      | 'insight'
+      | 'context'
+      | 'preference'
+      | 'task'
+      | 'merged'
+      | 'summary';
+    content: Record<string, unknown>;
     source: string;
     confidence: number;
   }>;
@@ -30,9 +40,9 @@ export interface ConsolidationJob {
 export interface ClusteringJob {
   type: 'clustering';
   operation: 'full-clustering' | 'incremental' | 'merge-clusters' | 'split-clusters';
-  filters?: any;
+  filters?: Record<string, unknown>;
   memoryIds?: string[];
-  config?: any;
+  config?: Record<string, unknown>;
 }
 
 export type JobData = EmbeddingJob | BatchImportJob | ConsolidationJob | ClusteringJob;

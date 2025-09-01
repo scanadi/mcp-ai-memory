@@ -293,7 +293,7 @@ export class ClusteringService {
       centroid,
       coherence,
       size: members.length,
-      createdAt: members[0]!.created_at,
+      createdAt: members[0]?.created_at || new Date(),
     };
   }
 
@@ -316,7 +316,7 @@ export class ClusteringService {
       .execute();
 
     return clusters.map((c) => ({
-      clusterId: Number(c.cluster_id!),
+      clusterId: c.cluster_id ? Number(c.cluster_id) : 0,
       size: Number(c.size),
       types: c.types ? (JSON.parse(c.types.replace('{', '[').replace('}', ']')) as string[]) : [],
       avgImportance: Number(c.avg_importance) || 0,
@@ -332,8 +332,8 @@ export class ClusteringService {
 
     for (let i = 0; i < clusters.length; i++) {
       for (let j = i + 1; j < clusters.length; j++) {
-        const cluster1 = await this.getCluster(String(clusters[i]!.clusterId));
-        const cluster2 = await this.getCluster(String(clusters[j]!.clusterId));
+        const cluster1 = await this.getCluster(String(clusters[i]?.clusterId));
+        const cluster2 = await this.getCluster(String(clusters[j]?.clusterId));
 
         if (!cluster1?.centroid || !cluster2?.centroid) continue;
 
@@ -372,7 +372,8 @@ export class ClusteringService {
     let splitCount = 0;
 
     for (const cluster of largeClusters) {
-      const clusterData = await this.getCluster(cluster.cluster_id!);
+      if (!cluster.cluster_id) continue;
+      const clusterData = await this.getCluster(cluster.cluster_id);
       if (!clusterData) continue;
 
       if (clusterData.coherence < minCoherence) {
@@ -380,7 +381,7 @@ export class ClusteringService {
         const memories = await this.db
           .selectFrom('memories')
           .select(['id', 'embedding'])
-          .where('cluster_id', '=', cluster.cluster_id!)
+          .where('cluster_id', '=', cluster.cluster_id)
           .execute();
 
         const points: DBSCANPoint[] = memories.map((m) => ({
@@ -397,7 +398,7 @@ export class ClusteringService {
         const newClusters = dbscan.cluster(points);
 
         // Update with new sub-clusters
-        let subClusterId = Number(cluster.cluster_id!) * 1000; // Create sub-cluster IDs
+        let subClusterId = Number(cluster.cluster_id) * 1000; // Create sub-cluster IDs
         for (const [, memberIds] of newClusters) {
           await this.db
             .updateTable('memories')
@@ -416,7 +417,7 @@ export class ClusteringService {
   /**
    * Queue clustering job
    */
-  async queueClusteringJob(filters?: any, config?: ClusteringConfig): Promise<string | null> {
+  async queueClusteringJob(filters?: Record<string, unknown>, config?: ClusteringConfig): Promise<string | null> {
     if (!this.queueService) {
       console.warn('Queue service not available, running clustering synchronously');
       await this.clusterMemories(filters, config);
@@ -437,12 +438,16 @@ export class ClusteringService {
   private calculateCentroid(embeddings: number[][]): number[] {
     if (embeddings.length === 0) return [];
 
-    const dimensions = embeddings[0]!.length;
+    const dimensions = embeddings[0]?.length || 0;
+    if (dimensions === 0) return [];
     const centroid = new Array(dimensions).fill(0);
 
     for (const embedding of embeddings) {
       for (let i = 0; i < dimensions; i++) {
-        centroid[i] += embedding[i]!;
+        const value = embedding[i];
+        if (value !== undefined) {
+          centroid[i] += value;
+        }
       }
     }
 
@@ -460,7 +465,11 @@ export class ClusteringService {
 
     for (let i = 0; i < embeddings.length; i++) {
       for (let j = i + 1; j < embeddings.length; j++) {
-        totalSimilarity += this.cosineSimilarity(embeddings[i]!, embeddings[j]!);
+        const embeddingI = embeddings[i];
+        const embeddingJ = embeddings[j];
+        if (embeddingI && embeddingJ) {
+          totalSimilarity += this.cosineSimilarity(embeddingI, embeddingJ);
+        }
         pairCount++;
       }
     }
@@ -479,9 +488,13 @@ export class ClusteringService {
     let normB = 0;
 
     for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i]! * b[i]!;
-      normA += a[i]! * a[i]!;
-      normB += b[i]! * b[i]!;
+      const aVal = a[i];
+      const bVal = b[i];
+      if (aVal !== undefined && bVal !== undefined) {
+        dotProduct += aVal * bVal;
+        normA += aVal * aVal;
+        normB += bVal * bVal;
+      }
     }
 
     normA = Math.sqrt(normA);

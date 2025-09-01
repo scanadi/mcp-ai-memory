@@ -52,7 +52,7 @@ export class ClusteringWorker {
     this.setupEventHandlers();
   }
 
-  private async processClusteringJob(job: Job<ClusteringJob>): Promise<any> {
+  private async processClusteringJob(job: Job<ClusteringJob>): Promise<Record<string, unknown>> {
     const { type, filters, memoryIds, config: clusterConfig } = job.data;
     const startTime = Date.now();
 
@@ -60,7 +60,7 @@ export class ClusteringWorker {
       await job.log(`Starting ${type} clustering job`);
       await job.updateProgress(10);
 
-      let result: any;
+      let result: Record<string, unknown>;
 
       switch (type) {
         case 'full-clustering':
@@ -101,7 +101,11 @@ export class ClusteringWorker {
     }
   }
 
-  private async performFullClustering(job: Job, filters?: any, clusterConfig?: any): Promise<any> {
+  private async performFullClustering(
+    job: Job,
+    filters?: Record<string, unknown>,
+    clusterConfig?: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
     await job.log('Performing full DBSCAN clustering on database');
     await job.updateProgress(20);
 
@@ -132,7 +136,11 @@ export class ClusteringWorker {
     };
   }
 
-  private async performIncrementalClustering(job: Job, memoryIds: string[], clusterConfig?: any): Promise<any> {
+  private async performIncrementalClustering(
+    job: Job,
+    memoryIds: string[],
+    clusterConfig?: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
     await job.log(`Performing incremental clustering for ${memoryIds.length} memories`);
     await job.updateProgress(30);
 
@@ -140,10 +148,10 @@ export class ClusteringWorker {
 
     await job.updateProgress(90);
 
-    return stats;
+    return { ...stats };
   }
 
-  private async performClusterMerging(job: Job): Promise<any> {
+  private async performClusterMerging(job: Job): Promise<Record<string, unknown>> {
     await job.log('Merging similar clusters');
     await job.updateProgress(30);
 
@@ -169,7 +177,7 @@ export class ClusteringWorker {
     };
   }
 
-  private async performClusterSplitting(job: Job): Promise<any> {
+  private async performClusterSplitting(job: Job): Promise<Record<string, unknown>> {
     await job.log('Splitting large incoherent clusters');
     await job.updateProgress(30);
 

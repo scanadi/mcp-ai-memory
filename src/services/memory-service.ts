@@ -68,19 +68,21 @@ export class MemoryService {
         .selectAll()
         .where('id', '=', existing.id)
         .executeTakeFirstOrThrow();
-      
+
       return updated;
     }
 
     // Prepare content string
-    let contentString = typeof input.content === 'string' ? input.content : JSON.stringify(input.content);
+    const originalContentString = typeof input.content === 'string' ? input.content : JSON.stringify(input.content);
+    let contentString = originalContentString;
     let isCompressed = false;
+    let compressionMetadata: Record<string, unknown> | null = null;
 
     // Apply compression for large content
-    if (contentString.length > this.COMPRESSION_THRESHOLD) {
+    if (originalContentString.length > this.COMPRESSION_THRESHOLD) {
       const tempMemory: Memory = {
         id: crypto.randomUUID(),
-        content: { text: contentString } as Record<string, unknown>,
+        content: { text: originalContentString } as Record<string, unknown>,
         user_context: input.user_context || 'default',
         type: input.type,
         tags: input.tags || [],
@@ -105,6 +107,12 @@ export class MemoryService {
       const compressedResult = await this.compressionService.compressMemory(tempMemory);
       contentString = compressedResult.compressedContent;
       isCompressed = true;
+      compressionMetadata = {
+        originalSize: originalContentString.length,
+        compressedSize: contentString.length,
+        compressionRatio: contentString.length / originalContentString.length,
+        compressionType: 'adaptive',
+      };
     }
 
     let embedding: number[] | null = null;
@@ -114,17 +122,17 @@ export class MemoryService {
       // Store memory without embedding first
       embedding = null;
     } else {
-      // Generate embedding synchronously (fallback)
-      embedding = await this.embeddingService.generateEmbedding(contentString);
+      // Generate embedding synchronously (fallback) - use original content for embeddings
+      embedding = await this.embeddingService.generateEmbedding(originalContentString);
     }
 
-    // Store the memory
+    // Store the memory with compressed content if applicable (always JSON encode for jsonb)
     const newMemory: NewMemory = {
       user_context: input.user_context || 'default',
       is_compressed: isCompressed,
-      content: JSON.stringify(input.content),
+      content: JSON.stringify(isCompressed ? { text: contentString } : input.content),
       content_hash: contentHash,
-      embedding: embedding ? JSON.stringify(embedding) : JSON.stringify(new Array(768).fill(0)), // Placeholder embedding for async processing
+      embedding: embedding ? JSON.stringify(embedding) : null, // NULL for async processing
       tags: input.tags || [],
       type: input.type,
       source: input.source,
@@ -135,6 +143,7 @@ export class MemoryService {
       importance_score: input.importance_score || 0.5,
       decay_rate: 0.01,
       access_count: 0,
+      metadata: compressionMetadata ? JSON.stringify(compressionMetadata) : null,
     };
 
     const result = await this.db.insertInto('memories').values(newMemory).returningAll().executeTakeFirstOrThrow();
@@ -142,7 +151,8 @@ export class MemoryService {
     // Queue embedding generation if async
     if (useAsyncEmbedding && config.ENABLE_ASYNC_PROCESSING && !embedding) {
       await queueService.addEmbeddingJob({
-        content: contentString,
+        // Generate embedding from original content for better semantic fidelity
+        content: originalContentString,
         memoryId: result.id,
         priority: input.importance_score ? Math.round(input.importance_score * 10) : 5,
       });
@@ -181,12 +191,12 @@ export class MemoryService {
       .selectFrom('memories')
       .selectAll()
       .select(sql<number>`1 - (embedding <=> ${embeddingString}::vector)`.as('similarity'))
-      .where('deleted_at', 'is', null);
+      .where('deleted_at', 'is', null)
+      .where('embedding', 'is not', null); // Exclude memories without embeddings
 
-    // Only filter by user_context if explicitly provided
-    if (input.user_context) {
-      query = query.where('user_context', '=', input.user_context);
-    }
+    // Filter by user_context (default to 'default' if not provided)
+    const searchUserContext = input.user_context || 'default';
+    query = query.where('user_context', '=', searchUserContext);
 
     // Apply filters
     if (input.type) {
@@ -230,10 +240,9 @@ export class MemoryService {
   async list(input: ListMemoryInput): Promise<Memory[]> {
     let query = this.db.selectFrom('memories').selectAll().where('deleted_at', 'is', null);
 
-    // Only filter by user_context if explicitly provided
-    if (input.user_context) {
-      query = query.where('user_context', '=', input.user_context);
-    }
+    // Filter by user_context (default to 'default' if not provided)
+    const searchUserContext = input.user_context || 'default';
+    query = query.where('user_context', '=', searchUserContext);
 
     if (input.type) {
       query = query.where('type', '=', input.type);
@@ -244,7 +253,10 @@ export class MemoryService {
       query = query.where((eb) => eb(sql<boolean>`tags && ${tagsArray}::text[]`, '=', true));
     }
 
-    return await query.orderBy('created_at', 'desc').limit(input.limit).offset(input.offset).execute();
+    const results = await query.orderBy('created_at', 'desc').limit(input.limit).offset(input.offset).execute();
+
+    // Decompress any compressed memories for client consumption
+    return this.decompressMemories(results);
   }
 
   async update(input: UpdateMemoryInput): Promise<Memory> {
@@ -464,8 +476,32 @@ export class MemoryService {
     };
   }
 
+  // Helper method to decompress memories
+  private async decompressMemories(memories: Memory[]): Promise<Memory[]> {
+    return Promise.all(
+      memories.map(async (memory) => {
+        if (memory.is_compressed) {
+          try {
+            // Decompress the content
+            const decompressed = await this.compressionService.decompressMemory(memory);
+            return {
+              ...memory,
+              // Keep as object to satisfy type expectations
+              content: { text: decompressed.decompressedContent } as unknown as Record<string, unknown>,
+              is_compressed: false, // Mark as decompressed for client
+            };
+          } catch (error) {
+            console.error(`Failed to decompress memory ${memory.id}:`, error);
+            return memory; // Return compressed if decompression fails
+          }
+        }
+        return memory;
+      })
+    );
+  }
+
   // Helper method to create memory without embedding
-  async create(input: any, generateEmbedding = true): Promise<Memory> {
+  async create(input: StoreMemoryInput, generateEmbedding = true): Promise<Memory> {
     return this.store({ ...input }, !generateEmbedding);
   }
 
@@ -533,7 +569,7 @@ export class MemoryService {
         content: m.content,
         source: m.source,
         confidence: m.confidence,
-        metadata: m as any,
+        metadata: m as Record<string, unknown>,
       })),
       userId: userContext,
     });

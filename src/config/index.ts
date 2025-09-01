@@ -11,8 +11,8 @@ const EnvSchema = z.object({
   // Simplified cache TTL settings
   DEFAULT_CACHE_TTL: z.coerce.number().default(3600), // 1 hour for general cache
   LONG_CACHE_TTL: z.coerce.number().default(86400), // 24 hours for embeddings
-  // Core settings
-  ENABLE_CLUSTERING: z.coerce.boolean().default(true),
+  // Core settings - default to false for local-first operation
+  ENABLE_CLUSTERING: z.coerce.boolean().default(false),
   CLUSTER_THRESHOLD: z.coerce.number().default(0.8),
   CONTEXT_WINDOW_SIZE: z.coerce.number().default(10),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
@@ -21,8 +21,8 @@ const EnvSchema = z.object({
   DEFAULT_SIMILARITY_THRESHOLD: z.coerce.number().default(0.7),
   MAX_TAGS: z.coerce.number().default(20),
   MAX_TAG_LENGTH: z.coerce.number().default(50),
-  // Async processing
-  ENABLE_ASYNC_PROCESSING: z.coerce.boolean().default(true),
+  // Async processing - default to false for local-first operation
+  ENABLE_ASYNC_PROCESSING: z.coerce.boolean().default(false),
   WORKER_CONCURRENCY: z.coerce.number().default(3),
 });
 

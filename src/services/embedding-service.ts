@@ -14,6 +14,8 @@ export class EmbeddingService {
   private modelLoading = false;
   private modelName: string;
   private cache = getCacheService();
+  private embeddingDimension: number | null = null;
+  private static readonly EXPECTED_DIMENSION = 768;
 
   constructor(modelName: string = config.EMBEDDING_MODEL) {
     this.modelName = modelName;
@@ -26,6 +28,11 @@ export class EmbeddingService {
       this.modelLoading = true;
       try {
         this.model = (await pipeline('feature-extraction', this.modelName)) as TransformerPipeline;
+
+        // Validate embedding dimensions on first load
+        if (!this.embeddingDimension) {
+          await this.validateEmbeddingDimensions();
+        }
       } catch (error) {
         this.modelLoading = false;
         throw new Error(`Failed to load embedding model: ${error}`);
@@ -37,6 +44,29 @@ export class EmbeddingService {
     }
 
     return this.model;
+  }
+
+  private async validateEmbeddingDimensions(): Promise<void> {
+    if (!this.model) {
+      throw new Error('Model not loaded');
+    }
+
+    // Generate a test embedding to check dimensions
+    const testText = 'test';
+    const result = await this.model(testText, { pooling: 'mean', normalize: true });
+    const dimension = result.data.length;
+
+    this.embeddingDimension = dimension;
+
+    if (dimension !== EmbeddingService.EXPECTED_DIMENSION) {
+      throw new Error(
+        `Embedding dimension mismatch: Model produces ${dimension}-dimensional embeddings, ` +
+          `but database expects ${EmbeddingService.EXPECTED_DIMENSION}. ` +
+          `Please update the model or database schema.`
+      );
+    }
+
+    console.log(`Embedding dimension validated: ${dimension} dimensions`);
   }
 
   async generateEmbedding(text: string): Promise<number[]> {

@@ -138,7 +138,7 @@ export class EmbeddingWorker {
     process.on('SIGINT', () => this.shutdown());
   }
 
-  private isRetryableError(error: any): boolean {
+  private isRetryableError(error: unknown): boolean {
     // Network errors, timeouts, rate limits are retryable
     const retryableMessages = [
       'ECONNREFUSED',
@@ -151,31 +151,50 @@ export class EmbeddingWorker {
       '504',
     ];
 
-    const errorMessage = error.message?.toLowerCase() || '';
+    const errorMessage = (error as Error).message?.toLowerCase() || '';
     return retryableMessages.some((msg) => errorMessage.includes(msg.toLowerCase()));
   }
 
-  private async handleNonRetryableError(job: Job<EmbeddingJob>, error: any): Promise<void> {
-    // Mark memory as having failed embedding generation
+  private async handleNonRetryableError(job: Job<EmbeddingJob>, error: unknown): Promise<void> {
+    // Sanitize error message to prevent injection
+    const rawMsg = String((error as Error).message || 'Unknown error').slice(0, 500);
+    const sanitizedError = rawMsg
+      .split('')
+      .filter((ch) => {
+        const code = ch.charCodeAt(0);
+        return code >= 32 && code !== 127; // strip control chars
+      })
+      .join('')
+      .replace(/'/g, "''"); // Escape single quotes for SQL safety
+    // Create safe error data object
+    const errorData = JSON.stringify({
+      embeddingError: sanitizedError,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Validate JSON before using in query
+    try {
+      JSON.parse(errorData); // Validate JSON structure
+    } catch {
+      console.error('[EmbeddingWorker] Invalid error data JSON');
+      return;
+    }
+
     await db
       .updateTable('memories')
       .set({
-        metadata: sql`
-          CASE 
-            WHEN metadata IS NULL THEN '{"embeddingError": "${error.message}"}'::jsonb
-            ELSE metadata || '{"embeddingError": "${error.message}"}'::jsonb
-          END
-        `,
+        metadata: sql`COALESCE(metadata, '{}'::jsonb) || ${errorData}::jsonb`,
         updated_at: new Date(),
       })
       .where('id', '=', job.data.memoryId)
       .execute();
 
-    // Log to dead letter queue tracking
+    // Log to dead letter queue tracking with sanitized output
     console.error(`[EmbeddingWorker] Non-retryable error for job ${job.id}:`, {
       memoryId: job.data.memoryId,
-      error: error.message,
-      stack: error.stack,
+      error: sanitizedError,
+      // Omit stack trace in production to prevent information disclosure
+      ...(process.env.NODE_ENV === 'development' ? { stack: (error as Error).stack } : {}),
     });
   }
 

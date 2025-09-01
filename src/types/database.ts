@@ -20,7 +20,7 @@ export interface MemoryTable {
   // New fields for v2
   parent_id: string | null;
   relation_type: 'extends' | 'contradicts' | 'supports' | 'references' | null;
-  cluster_id: string | null;
+  cluster_id: string | null; // Changed from uuid to text to support numeric IDs
   importance_score: number;
   decay_rate: number;
   metadata: ColumnType<Record<string, unknown> | null, string | null, string | null>; // JSONB for additional data

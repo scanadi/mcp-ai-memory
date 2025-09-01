@@ -27,8 +27,11 @@ export class BatchWorker {
       });
 
     // Initialize batch import worker
+    if (!this.connection) {
+      throw new Error('Redis connection is required for batch worker');
+    }
     this.batchWorker = new Worker<BatchImportJob>('batch-import', this.processBatchImport.bind(this), {
-      connection: this.connection!,
+      connection: this.connection,
       concurrency: 2, // Lower concurrency for batch operations
       autorun: true,
     });
@@ -38,7 +41,7 @@ export class BatchWorker {
       'memory-consolidation',
       this.processConsolidation.bind(this),
       {
-        connection: this.connection!,
+        connection: this.connection,
         concurrency: 1, // Single concurrency to avoid conflicts
         autorun: true,
       }
@@ -48,9 +51,9 @@ export class BatchWorker {
   }
 
   private async processBatchImport(job: Job<BatchImportJob>): Promise<void> {
-    const { memories, userId } = job.data;
+    const { memories } = job.data;
     const startTime = Date.now();
-    const results = { success: 0, failed: 0, errors: [] as any[] };
+    const results = { success: 0, failed: 0, errors: [] as string[] };
 
     try {
       await job.log(`Starting batch import of ${memories.length} memories`);
@@ -75,12 +78,8 @@ export class BatchWorker {
               const created = await this.memoryService.create(
                 {
                   ...memory,
-                  metadata: {
-                    ...(memory as any).metadata,
-                    batchImport: true,
-                    importJobId: job.id,
-                    userId,
-                  },
+                  tags: [],
+                  importance_score: 0.5,
                 },
                 false
               ); // false = skip embedding generation
@@ -101,7 +100,7 @@ export class BatchWorker {
             if (result.status === 'rejected') {
               results.errors.push(result.reason);
             } else if (result.status === 'fulfilled' && !result.value.success) {
-              results.errors.push(result.value.error);
+              results.errors.push(result.value.error || 'Unknown error');
             }
           }
         }
@@ -115,7 +114,9 @@ export class BatchWorker {
       await job.log(`Batch import completed: ${results.success} success, ${results.failed} failed in ${duration}ms`);
 
       // Store results for later retrieval
-      await this.storeBatchResults(job.id!, results);
+      if (job.id) {
+        await this.storeBatchResults(job.id, results);
+      }
 
       // If we have failures, log them but don't fail the job
       if (results.failed > 0) {
@@ -129,7 +130,7 @@ export class BatchWorker {
     }
   }
 
-  private async processConsolidation(job: Job<ConsolidationJob>): Promise<void> {
+  private async processConsolidation(job: Job<ConsolidationJob>): Promise<Record<string, unknown> | undefined> {
     const { memoryIds, strategy } = job.data;
     const startTime = Date.now();
 
@@ -137,7 +138,7 @@ export class BatchWorker {
       await job.log(`Starting ${strategy} consolidation for ${memoryIds.length} memories`);
       await job.updateProgress(10);
 
-      let result;
+      let result: Record<string, unknown>;
       switch (strategy) {
         case 'merge':
           result = await this.mergeMemories(memoryIds, job);
@@ -169,7 +170,7 @@ export class BatchWorker {
     }
   }
 
-  private async mergeMemories(memoryIds: string[], job: Job): Promise<any> {
+  private async mergeMemories(memoryIds: string[], job: Job): Promise<Record<string, unknown>> {
     await job.log('Fetching memories for merge...');
 
     // Fetch all memories
@@ -193,7 +194,7 @@ export class BatchWorker {
 
     // Create merged memory
     const mergedMemory = await this.memoryService.create({
-      type: 'merged',
+      type: 'fact' as const, // Store merged memories as facts
       content: {
         merged: true,
         originalIds: memoryIds,
@@ -202,11 +203,8 @@ export class BatchWorker {
       },
       source: 'consolidation:merge',
       confidence: Math.max(...memories.map((m) => m.confidence)),
-      metadata: {
-        strategy: 'merge',
-        originalCount: memories.length,
-        consolidationJobId: job.id,
-      },
+      importance_score: 0.8, // Higher importance for merged memories
+      tags: [],
     });
 
     await job.updateProgress(70);
@@ -222,7 +220,7 @@ export class BatchWorker {
     };
   }
 
-  private async summarizeMemories(memoryIds: string[], job: Job): Promise<any> {
+  private async summarizeMemories(memoryIds: string[], job: Job): Promise<Record<string, unknown>> {
     await job.log('Fetching memories for summarization...');
 
     const memories = await this.memoryService.getByIds(memoryIds);
@@ -233,7 +231,7 @@ export class BatchWorker {
     const grouped = memories.reduce(
       (acc, mem) => {
         if (!acc[mem.type]) acc[mem.type] = [];
-        acc[mem.type]!.push(mem);
+        acc[mem.type]?.push(mem);
         return acc;
       },
       {} as Record<string, typeof memories>
@@ -263,7 +261,7 @@ export class BatchWorker {
 
     // Create summary memory
     const summaryMemory = await this.memoryService.create({
-      type: 'summary',
+      type: 'insight' as const, // Store summaries as insights
       content: {
         summaries,
         originalIds: memoryIds,
@@ -271,12 +269,8 @@ export class BatchWorker {
       },
       source: 'consolidation:summarize',
       confidence: 0.9,
-      metadata: {
-        strategy: 'summarize',
-        originalCount: memories.length,
-        typeCount: Object.keys(grouped).length,
-        consolidationJobId: job.id,
-      },
+      importance_score: 0.9, // Higher importance for summaries
+      tags: [],
     });
 
     // Archive originals
@@ -291,13 +285,13 @@ export class BatchWorker {
     };
   }
 
-  private async clusterMemories(memoryIds: string[], job: Job): Promise<any> {
+  private async clusterMemories(memoryIds: string[], job: Job): Promise<Record<string, unknown>> {
     await job.log('Starting DBSCAN clustering...');
 
     await job.updateProgress(20);
 
     // Use proper DBSCAN clustering
-    const filters: any = {};
+    const filters: Record<string, unknown> = {};
     const clusteringConfig = {
       epsilon: 0.3,
       minPoints: 3,
@@ -366,7 +360,7 @@ export class BatchWorker {
     }
   }
 
-  private async storeBatchResults(jobId: string, results: any): Promise<void> {
+  private async storeBatchResults(jobId: string, results: Record<string, unknown>): Promise<void> {
     if (!this.connection) return;
 
     const key = `batch-results:${jobId}`;

@@ -8,6 +8,7 @@ const MAX_USER_CONTEXT_LENGTH = 100;
 // Sanitization helpers
 const sanitizeString = (str: string): string => {
   // Remove null bytes and control characters except newlines and tabs
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: These control characters are intentionally removed for security
   return str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim();
 };
 
@@ -29,6 +30,8 @@ export const MemoryTypeSchema = z.enum([
   'context',
   'preference',
   'task',
+  'merged',
+  'summary',
 ]);
 
 export const RelationTypeSchema = z.enum(['references', 'contradicts', 'supports', 'extends']);

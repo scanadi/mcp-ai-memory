@@ -45,7 +45,7 @@ async function migrateDatabase() {
 
       if (error) {
         console.error('Failed to roll back migrations');
-        console.error(error);
+        console.error('Migration error:', (error as Error).message);
         process.exit(1);
       }
     } else {
@@ -61,7 +61,7 @@ async function migrateDatabase() {
 
       if (error) {
         console.error('Failed to migrate');
-        console.error(error);
+        console.error('Migration error:', (error as Error).message);
         process.exit(1);
       }
     }
@@ -69,7 +69,7 @@ async function migrateDatabase() {
     await db.destroy();
     console.log('Migrations completed successfully');
   } catch (error) {
-    console.error('Migration failed:', error);
+    console.error('Migration failed:', (error as Error).message);
     await db.destroy();
     process.exit(1);
   }
