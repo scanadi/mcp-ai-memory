@@ -1,0 +1,64 @@
+{
+  "name": "mcp-ai-memory",
+  "version": "2.0.0",
+  "description": "A production-ready Model Context Protocol (MCP) server for semantic memory management",
+  "type": "module",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scanadi/mcp-ai-memory.git"
+  },
+  "bugs": {
+    "url": "https://github.com/scanadi/mcp-ai-memory/issues"
+  },
+  "homepage": "https://github.com/scanadi/mcp-ai-memory#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "memory",
+    "semantic-search",
+    "pgvector",
+    "embeddings",
+    "ai",
+    "llm"
+  ],
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "tsc",
+    "start": "bun run dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check --write .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "migrate": "bun run src/database/migrate.ts",
+    "migrate:down": "bun run src/database/migrate.ts down",
+    "workers": "bun run scripts/start-workers.ts",
+    "worker:embedding": "bun run src/workers/embedding-worker.ts",
+    "worker:batch": "bun run src/workers/batch-worker.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "@types/node-cache": "^4.2.5",
+    "@xenova/transformers": "^2.17.2",
+    "bullmq": "^5.58.0",
+    "dotenv": "latest",
+    "ioredis": "^5.7.0",
+    "kysely": "latest",
+    "node-cache": "^5.1.2",
+    "pg": "latest",
+    "pgvector": "latest",
+    "winston": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/bun": "latest",
+    "@types/node": "latest",
+    "@types/pg": "latest",
+    "typescript": "latest"
+  }
+}
