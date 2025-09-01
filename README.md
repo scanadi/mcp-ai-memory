@@ -61,7 +61,7 @@ bun run start
 
 ## MCP Integration
 
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+Add to your Claude Code config:
 
 ```json
 {
