@@ -24,5 +24,8 @@
     "types": ["node", "bun"]
   },
   "include": ["src/**/*"],
+  "ts-node": {
+    "esm": true
+  },
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }

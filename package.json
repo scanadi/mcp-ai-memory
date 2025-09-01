@@ -23,6 +23,28 @@
     "ai",
     "llm"
   ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "mcp-ai-memory": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "build": "tsc",
@@ -38,7 +60,11 @@
     "worker:embedding": "bun run src/workers/embedding-worker.ts",
     "worker:batch": "bun run src/workers/batch-worker.ts",
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "prepublishOnly": "npm run lint:check && npm run typecheck && npm run build && npm test",
+    "preversion": "npm run lint:check",
+    "version": "npm run format && git add -A src",
+    "postversion": "git push && git push --tags"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "latest",

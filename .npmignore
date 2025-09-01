@@ -1,0 +1,53 @@
+# Source files
+src/
+scripts/
+
+# Development files
+.env
+.env.*
+*.log
+*.swp
+.DS_Store
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+__tests__/
+coverage/
+.nyc_output/
+
+# Config files
+.gitignore
+.github/
+biome.json
+tsconfig.json
+bun.lockb
+
+# Development directories
+node_modules/
+.vscode/
+.idea/
+
+# Build artifacts not needed
+*.tsbuildinfo
+
+# Documentation source
+docs/
+
+# Local database files
+*.db
+*.sqlite
+
+# Docker files
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# CI/CD
+.travis.yml
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# Examples and demos
+examples/
+demo/

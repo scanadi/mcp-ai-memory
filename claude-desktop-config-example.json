@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-ai-memory"
+      ],
+      "env": {
+        "DATABASE_URL": "postgresql://username:password@localhost:5432/memory_db"
+      }
+    },
+    "memory-with-redis": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-ai-memory"
+      ],
+      "env": {
+        "DATABASE_URL": "postgresql://username:password@localhost:5432/memory_db",
+        "REDIS_URL": "redis://localhost:6379",
+        "EMBEDDING_MODEL": "Xenova/all-MiniLM-L6-v2",
+        "LOG_LEVEL": "info",
+        "CACHE_TTL": "3600",
+        "MAX_MEMORIES_PER_QUERY": "10",
+        "MIN_SIMILARITY_SCORE": "0.5",
+        "BATCH_SIZE": "100",
+        "EMBEDDING_QUEUE_CONCURRENCY": "2",
+        "BATCH_QUEUE_CONCURRENCY": "1"
+      }
+    }
+  }
+}

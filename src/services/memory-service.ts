@@ -882,4 +882,17 @@ export class MemoryService {
 
     return clusters;
   }
+
+  async cleanup(): Promise<void> {
+    // Clean up cache service
+    await this.cache.close();
+    
+    // Clean up queue service if it's running
+    if (config.ENABLE_ASYNC_PROCESSING) {
+      await queueService.shutdown();
+    }
+    
+    // Destroy database connection
+    await this.db.destroy();
+  }
 }

@@ -17,11 +17,19 @@ A production-ready Model Context Protocol (MCP) server for semantic memory manag
 
 ## Prerequisites
 
-- Node.js 20+ or Bun
+- Node.js 18+ or Bun
 - PostgreSQL with pgvector extension
-- Redis (optional, for caching)
+- Redis (optional - falls back to in-memory cache if not available)
 
 ## Installation
+
+### NPM Package (Recommended for Claude Desktop)
+
+```bash
+npm install -g mcp-ai-memory
+```
+
+### From Source
 
 1. Install dependencies:
 ```bash
@@ -59,24 +67,56 @@ bun run build
 bun run start
 ```
 
-## MCP Integration
+## Claude Desktop Integration
 
-Add to your Claude Code config:
+### Quick Setup (NPM)
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
   "mcpServers": {
     "memory": {
-      "command": "bun",
-      "args": ["run", "/path/to/mcp-ai-memory/src/index.ts"],
+      "command": "npx",
+      "args": ["-y", "mcp-ai-memory"],
       "env": {
-        "MEMORY_DB_URL": "postgresql://user:password@localhost:5432/mcp_ai_memory",
-        "REDIS_URL": "redis://localhost:6379"
+        "DATABASE_URL": "postgresql://username:password@localhost:5432/memory_db"
       }
     }
   }
 }
 ```
+
+### With Optional Redis Cache
+
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "mcp-ai-memory"],
+      "env": {
+        "DATABASE_URL": "postgresql://username:password@localhost:5432/memory_db",
+        "REDIS_URL": "redis://localhost:6379",
+        "EMBEDDING_MODEL": "Xenova/all-MiniLM-L6-v2",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | **Required** |
+| `REDIS_URL` | Redis connection string (optional) | None - uses in-memory cache |
+| `EMBEDDING_MODEL` | Transformers.js model | `Xenova/all-MiniLM-L6-v2` |
+| `LOG_LEVEL` | Logging level | `info` |
+| `CACHE_TTL` | Cache TTL in seconds | `3600` |
+| `MAX_MEMORIES_PER_QUERY` | Max results per search | `10` |
+| `MIN_SIMILARITY_SCORE` | Min similarity threshold | `0.5` |
 
 ## Available Tools
 

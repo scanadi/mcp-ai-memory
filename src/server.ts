@@ -743,6 +743,14 @@ export class MemoryMcpServer {
     });
   }
 
+  getServer() {
+    return this.server;
+  }
+
+  async cleanup() {
+    await this.memoryService.cleanup();
+  }
+
   async start() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
@@ -750,6 +758,8 @@ export class MemoryMcpServer {
   }
 }
 
-// Main entry point
-const server = new MemoryMcpServer();
-server.start().catch(console.error);
+// Main entry point - only run if this is the main module
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const server = new MemoryMcpServer();
+  server.start().catch(console.error);
+}
