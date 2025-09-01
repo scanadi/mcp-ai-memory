@@ -10,7 +10,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - uses: oven-sh/setup-bun@v1
         with:
@@ -28,7 +28,7 @@ jobs:
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - uses: oven-sh/setup-bun@v1
         with:
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, typecheck]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - uses: oven-sh/setup-bun@v1
         with:
@@ -91,7 +91,7 @@ jobs:
           - 6379:6379
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - uses: oven-sh/setup-bun@v1
         with:
