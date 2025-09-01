@@ -116,6 +116,7 @@ export class MemoryService {
     }
 
     let embedding: number[] | null = null;
+    let embeddingDimension: number | undefined = undefined;
 
     // Use async job processing if enabled
     if (useAsyncEmbedding && config.ENABLE_ASYNC_PROCESSING) {
@@ -124,6 +125,7 @@ export class MemoryService {
     } else {
       // Generate embedding synchronously (fallback) - use original content for embeddings
       embedding = await this.embeddingService.generateEmbedding(originalContentString);
+      embeddingDimension = embedding ? embedding.length : undefined;
     }
 
     // Store the memory with compressed content if applicable (always JSON encode for jsonb)
@@ -133,6 +135,7 @@ export class MemoryService {
       content: JSON.stringify(isCompressed ? { text: contentString } : input.content),
       content_hash: contentHash,
       embedding: embedding ? JSON.stringify(embedding) : null, // NULL for async processing
+      embedding_dimension: embeddingDimension,
       tags: input.tags || [],
       type: input.type,
       source: input.source,
@@ -185,6 +188,7 @@ export class MemoryService {
 
     // Generate embedding for search query
     const queryEmbedding = await this.embeddingService.generateEmbedding(input.query);
+    const queryDimension = queryEmbedding.length;
     const embeddingString = `[${queryEmbedding.join(',')}]`;
 
     let query = this.db
@@ -192,7 +196,8 @@ export class MemoryService {
       .selectAll()
       .select(sql<number>`1 - (embedding <=> ${embeddingString}::vector)`.as('similarity'))
       .where('deleted_at', 'is', null)
-      .where('embedding', 'is not', null); // Exclude memories without embeddings
+      .where('embedding', 'is not', null) // Exclude memories without embeddings
+      .where('embedding_dimension', '=', queryDimension); // Only search memories with matching dimensions
 
     // Filter by user_context (default to 'default' if not provided)
     const searchUserContext = input.user_context || 'default';

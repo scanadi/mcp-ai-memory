@@ -1,0 +1,54 @@
+import { type Kysely, sql } from 'kysely';
+
+export async function up(db: Kysely<unknown>): Promise<void> {
+  // First, check if we have any existing data with embeddings
+  const result = await sql<{ count: number }>`
+    SELECT COUNT(*) as count FROM memories WHERE embedding IS NOT NULL
+  `.execute(db);
+  
+  const hasData = result.rows[0]?.count > 0;
+  
+  if (hasData) {
+    console.warn('Warning: Existing embeddings found. Migration will preserve data but dimension changes may require re-embedding.');
+  }
+
+  // Drop the old HNSW index
+  await sql`DROP INDEX IF EXISTS idx_memories_embedding`.execute(db);
+  
+  // Alter the embedding column to support variable dimensions
+  // PostgreSQL's vector type doesn't enforce dimensions at column level when not specified
+  await sql`ALTER TABLE memories ALTER COLUMN embedding TYPE vector`.execute(db);
+  
+  // Recreate the HNSW index without dimension constraint
+  await sql`CREATE INDEX idx_memories_embedding ON memories 
+    USING hnsw (embedding vector_cosine_ops)`.execute(db);
+  
+  // Add a column to track the embedding dimension for each memory
+  await db.schema
+    .alterTable('memories')
+    .addColumn('embedding_dimension', 'integer')
+    .execute();
+  
+  // Update existing records to set their embedding dimension if they have embeddings
+  await sql`
+    UPDATE memories 
+    SET embedding_dimension = array_length(embedding::real[], 1)
+    WHERE embedding IS NOT NULL
+  `.execute(db);
+  
+  console.log('Migration completed: Database now supports flexible embedding dimensions');
+}
+
+export async function down(db: Kysely<unknown>): Promise<void> {
+  // Drop the embedding_dimension column
+  await db.schema
+    .alterTable('memories')
+    .dropColumn('embedding_dimension')
+    .execute();
+  
+  // Restore the fixed dimension vector column (defaulting to 768)
+  await sql`DROP INDEX IF EXISTS idx_memories_embedding`.execute(db);
+  await sql`ALTER TABLE memories ALTER COLUMN embedding TYPE vector(768)`.execute(db);
+  await sql`CREATE INDEX idx_memories_embedding ON memories 
+    USING hnsw (embedding vector_cosine_ops)`.execute(db);
+}

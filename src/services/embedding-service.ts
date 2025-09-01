@@ -15,7 +15,7 @@ export class EmbeddingService {
   private modelName: string;
   private cache = getCacheService();
   private embeddingDimension: number | null = null;
-  private static readonly EXPECTED_DIMENSION = 768;
+  private static EXPECTED_DIMENSION: number | null = null;
 
   constructor(modelName: string = config.EMBEDDING_MODEL) {
     this.modelName = modelName;
@@ -58,11 +58,16 @@ export class EmbeddingService {
 
     this.embeddingDimension = dimension;
 
-    if (dimension !== EmbeddingService.EXPECTED_DIMENSION) {
+    // If EXPECTED_DIMENSION is not set, this is the first run - set it based on the model
+    if (EmbeddingService.EXPECTED_DIMENSION === null) {
+      EmbeddingService.EXPECTED_DIMENSION = dimension;
+      console.log(`Setting expected embedding dimension to: ${dimension}`);
+    } else if (dimension !== EmbeddingService.EXPECTED_DIMENSION) {
+      // Only throw error if dimensions don't match an already established expectation
       throw new Error(
         `Embedding dimension mismatch: Model produces ${dimension}-dimensional embeddings, ` +
           `but database expects ${EmbeddingService.EXPECTED_DIMENSION}. ` +
-          `Please update the model or database schema.`
+          `Please ensure consistent model usage across sessions.`
       );
     }
 
@@ -124,5 +129,17 @@ export class EmbeddingService {
     const contentString = typeof content === 'string' ? content : JSON.stringify(content);
 
     return crypto.createHash('sha256').update(contentString).digest('hex');
+  }
+
+  getEmbeddingDimension(): number | null {
+    return this.embeddingDimension;
+  }
+
+  static getExpectedDimension(): number | null {
+    return EmbeddingService.EXPECTED_DIMENSION;
+  }
+
+  static setExpectedDimension(dimension: number): void {
+    EmbeddingService.EXPECTED_DIMENSION = dimension;
   }
 }

@@ -6,6 +6,7 @@ export interface MemoryTable {
   content: ColumnType<Record<string, unknown>, string, string>; // JSONB
   content_hash: string;
   embedding: ColumnType<number[] | null, string | null, string | null>; // vector type (nullable for async)
+  embedding_dimension: ColumnType<number | null, number | undefined, number | undefined>; // Track dimension of each embedding
   tags: string[];
   type: string;
   source: string;

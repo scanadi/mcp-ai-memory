@@ -70,6 +70,57 @@ bun run build
 bun run start
 ```
 
+## Troubleshooting
+
+### Embedding Dimension Mismatch Error
+
+If you see an error like:
+```
+Failed to generate embedding: Error: Embedding dimension mismatch: Model produces 384-dimensional embeddings, but database expects 768
+```
+
+This occurs when the embedding model changes between sessions. To fix:
+
+1. **Option 1: Reset and Re-embed (Recommended for new installations)**
+   ```bash
+   # Clear existing memories and start fresh
+   psql -d your_database -c "TRUNCATE TABLE memories CASCADE;"
+   ```
+
+2. **Option 2: Specify a Consistent Model**
+   Add `EMBEDDING_MODEL` to your Claude Desktop config:
+   ```json
+   {
+     "mcpServers": {
+       "memory": {
+         "command": "npx",
+         "args": ["-y", "mcp-ai-memory"],
+         "env": {
+           "MEMORY_DB_URL": "postgresql://...",
+           "EMBEDDING_MODEL": "Xenova/all-mpnet-base-v2"
+         }
+       }
+     }
+   }
+   ```
+   Common models:
+   - `Xenova/all-mpnet-base-v2` (768 dimensions - default, best quality)
+   - `Xenova/all-MiniLM-L6-v2` (384 dimensions - smaller/faster)
+
+3. **Option 3: Run Migration for Flexible Dimensions**
+   If you're using the source version:
+   ```bash
+   bun run migrate
+   ```
+   This allows mixing different embedding dimensions in the same database.
+
+### Database Connection Issues
+
+Ensure your PostgreSQL has the pgvector extension:
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
 ## Claude Desktop Integration
 
 ### Quick Setup (NPM)
