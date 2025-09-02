@@ -13,6 +13,7 @@ import {
 import { z } from 'zod';
 import { config } from './config/index.js';
 import { createDatabase } from './database/client.js';
+import { runMigrations } from './database/auto-migrate.js';
 import {
   BatchMemorySchema,
   ConsolidateMemorySchema,
@@ -752,6 +753,18 @@ export class MemoryMcpServer {
   }
 
   async start() {
+    const db = createDatabase(config.MEMORY_DB_URL);
+    
+    try {
+      await runMigrations(db);
+    } catch (error) {
+      console.error('[Server] Failed to run migrations:', error);
+      await db.destroy();
+      process.exit(1);
+    }
+    
+    await db.destroy();
+    
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error('MCP AI Memory Server started');
