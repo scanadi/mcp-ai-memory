@@ -1,7 +1,11 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
+// Suppress dotenv debug output
+const originalLog = console.log;
+console.log = () => {};
 dotenv.config();
+console.log = originalLog;
 
 const EnvSchema = z.object({
   MEMORY_DB_URL: z.string(),

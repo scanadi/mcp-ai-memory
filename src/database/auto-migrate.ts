@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FileMigrationProvider, Migrator, type MigrationResultSet, sql } from 'kysely';
 import type { Kysely } from 'kysely';
+import { FileMigrationProvider, type MigrationResultSet, Migrator, sql } from 'kysely';
 import type { Database } from '../types/database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -17,7 +17,7 @@ async function checkSchemaExists(db: Kysely<Database>): Promise<boolean> {
         AND table_name = 'memories'
       ) as exists
     `.execute(db);
-    
+
     return result.rows[0]?.exists || false;
   } catch (error) {
     console.error('[Migration] Error checking schema existence:', error);
@@ -34,7 +34,7 @@ async function checkMigrationTableExists(db: Kysely<Database>): Promise<boolean>
         AND table_name = 'kysely_migration'
       ) as exists
     `.execute(db);
-    
+
     return result.rows[0]?.exists || false;
   } catch (error) {
     console.error('[Migration] Error checking migration table existence:', error);
@@ -45,11 +45,13 @@ async function checkMigrationTableExists(db: Kysely<Database>): Promise<boolean>
 export async function runMigrations(db: Kysely<Database>): Promise<MigrationResultSet> {
   const schemaExists = await checkSchemaExists(db);
   const migrationTableExists = await checkMigrationTableExists(db);
-  
+
   if (schemaExists && migrationTableExists) {
     console.error('[Migration] Schema exists, checking for pending migrations...');
   } else if (schemaExists && !migrationTableExists) {
-    console.error('[Migration] Schema exists but migration table is missing. Running migrations to ensure consistency...');
+    console.error(
+      '[Migration] Schema exists but migration table is missing. Running migrations to ensure consistency...'
+    );
   } else {
     console.error('[Migration] Database is empty. Initializing schema...');
   }
@@ -62,7 +64,7 @@ export async function runMigrations(db: Kysely<Database>): Promise<MigrationResu
       migrationFolder: path.join(__dirname, 'migrations'),
     }),
   });
-  
+
   const { error, results } = await migrator.migrateToLatest();
 
   results?.forEach((it) => {
@@ -80,7 +82,7 @@ export async function runMigrations(db: Kysely<Database>): Promise<MigrationResu
     throw error;
   }
 
-  const migrationsRun = results?.filter(r => r.status === 'Success').length || 0;
+  const migrationsRun = results?.filter((r) => r.status === 'Success').length || 0;
   if (migrationsRun > 0) {
     console.error(`[Migration] ✓ ${migrationsRun} migration(s) completed successfully`);
   } else {
