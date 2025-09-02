@@ -91,6 +91,7 @@ export class MemoryService {
         confidence: input.confidence,
         content_hash: '',
         embedding: null,
+        embedding_dimension: null,
         similarity_threshold: 0.7,
         created_at: new Date(),
         updated_at: new Date(),
@@ -116,7 +117,7 @@ export class MemoryService {
     }
 
     let embedding: number[] | null = null;
-    let embeddingDimension: number | undefined = undefined;
+    let embeddingDimension: number | undefined;
 
     // Use async job processing if enabled
     if (useAsyncEmbedding && config.ENABLE_ASYNC_PROCESSING) {

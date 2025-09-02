@@ -13,6 +13,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('content', 'jsonb', (col) => col.notNull())
     .addColumn('content_hash', 'varchar(64)', (col) => col.notNull())
     .addColumn('embedding', sql`vector(768)`)
+    .addColumn('embedding_dimension', 'integer')
     .addColumn('tags', sql`text[]`, (col) => col.defaultTo(sql`ARRAY[]::text[]`))
     .addColumn('type', 'varchar(50)', (col) => col.notNull())
     .addColumn('source', 'varchar(200)', (col) => col.notNull())
@@ -29,6 +30,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('accessed_at', 'timestamptz')
     .addColumn('deleted_at', 'timestamptz')
     .addColumn('metadata', 'jsonb')
+    .addColumn('is_compressed', 'boolean', (col) => col.defaultTo(false).notNull())
     .execute();
 
   // Create indexes

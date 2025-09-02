@@ -13,8 +13,8 @@ describe('MemoryService', () => {
     db = createDatabase(config.MEMORY_DB_URL);
     memoryService = new MemoryService(db);
     
-    // Run migrations
-    await import('../src/database/migrate');
+    // Don't run migrations - assume database is already set up
+    // await import('../src/database/migrate');
   });
 
   afterAll(async () => {
