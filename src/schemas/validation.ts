@@ -68,7 +68,7 @@ export const SearchMemorySchema = z.object({
   query: z.string().min(1).max(1000).transform(sanitizeString),
   type: MemoryTypeSchema.optional(),
   tags: z.array(z.string().transform(sanitizeTag)).optional(),
-  limit: z.number().int().min(1).max(100).default(20),
+  limit: z.number().int().min(1).max(100).default(10),
   threshold: z.number().min(0).max(1).default(0.7),
   user_context: z.string().max(MAX_USER_CONTEXT_LENGTH).transform(sanitizeString).optional(),
   include_relations: z.boolean().default(false),
@@ -101,7 +101,7 @@ export const DeleteMemorySchema = z
 export const ListMemorySchema = z.object({
   type: MemoryTypeSchema.optional(),
   tags: z.array(z.string().transform(sanitizeTag)).optional(),
-  limit: z.number().int().min(1).max(100).default(50),
+  limit: z.number().int().min(1).max(100).default(10),
   offset: z.number().int().min(0).default(0),
   user_context: z.string().max(MAX_USER_CONTEXT_LENGTH).transform(sanitizeString).optional(),
 });

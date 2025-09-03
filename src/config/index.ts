@@ -21,7 +21,7 @@ const EnvSchema = z.object({
   CONTEXT_WINDOW_SIZE: z.coerce.number().default(10),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   MAX_CONTENT_SIZE: z.coerce.number().default(1048576), // 1MB
-  DEFAULT_SEARCH_LIMIT: z.coerce.number().default(20),
+  DEFAULT_SEARCH_LIMIT: z.coerce.number().default(10),
   DEFAULT_SIMILARITY_THRESHOLD: z.coerce.number().default(0.7),
   MAX_TAGS: z.coerce.number().default(20),
   MAX_TAG_LENGTH: z.coerce.number().default(50),

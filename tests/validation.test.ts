@@ -115,7 +115,7 @@ describe('Validation Schemas', () => {
       };
 
       const result = SearchMemorySchema.parse(input);
-      expect(result.limit).toBe(20);
+      expect(result.limit).toBe(10);
       expect(result.threshold).toBe(0.7);
     });
 
@@ -162,7 +162,7 @@ describe('Validation Schemas', () => {
 
       const result = ListMemorySchema.parse(input);
       expect(result.type).toBe('fact');
-      expect(result.limit).toBe(50);
+      expect(result.limit).toBe(10);
       expect(result.offset).toBe(0);
     });
 

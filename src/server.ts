@@ -35,7 +35,7 @@ export class MemoryMcpServer {
     this.server = new Server(
       {
         name: 'memory-server',
-        version: '2.0.0',
+        version: '1.0.6',
       },
       {
         capabilities: {
@@ -58,7 +58,8 @@ export class MemoryMcpServer {
       tools: [
         {
           name: 'memory_store',
-          description: 'Store a memory with semantic embeddings and optional relationships',
+          description:
+            'STORE SAVE REMEMBER CREATE - Store new information, facts, preferences, conversations, or knowledge. Use after searching to avoid duplicates. Keywords: save, remember, store, record, memorize, learn, retain, persist, create memory, add knowledge, save fact, store preference, remember conversation',
           inputSchema: {
             type: 'object',
             properties: {
@@ -95,7 +96,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_search',
-          description: 'Semantic search through memories with similarity scoring',
+          description:
+            'SEARCH FIND RECALL RETRIEVE QUERY LOOKUP - Search for stored information using natural language. USE THIS FIRST before any memory operation. Keywords: search, find, recall, retrieve, query, lookup, remember, fetch, get, access, locate, discover, check memory, find information, recall fact, retrieve data, search knowledge, what do I know, user preferences, user name, previous conversation',
           inputSchema: {
             type: 'object',
             properties: {
@@ -112,7 +114,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_list',
-          description: 'List all memories with optional filtering by type and tags',
+          description:
+            'LIST BROWSE SHOW ALL - List all stored memories chronologically. Use when search returns nothing or to explore what is stored. Keywords: list, browse, show, display, view all, get all, see memories, show history, list facts, display knowledge, browse storage, what is stored, show everything, recent memories',
           inputSchema: {
             type: 'object',
             properties: {
@@ -126,7 +129,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_update',
-          description: 'Update memory metadata, tags, or importance',
+          description:
+            'UPDATE MODIFY EDIT CHANGE - Update existing memory metadata, tags, confidence, or importance. Keywords: update, modify, edit, change, revise, amend, alter, adjust, correct, fix, improve memory, update fact, change information',
           inputSchema: {
             type: 'object',
             properties: {
@@ -148,7 +152,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_delete',
-          description: 'Delete a memory by content hash or ID',
+          description:
+            'DELETE REMOVE FORGET ERASE - Delete a specific memory by ID. Keywords: delete, remove, forget, erase, clear, purge, discard, eliminate, destroy memory, remove fact, forget information',
           inputSchema: {
             type: 'object',
             properties: {
@@ -159,7 +164,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_batch',
-          description: 'Store multiple memories in a single operation',
+          description:
+            'BATCH BULK MULTIPLE IMPORT - Store multiple memories at once for efficiency. Keywords: batch, bulk, multiple, import, mass store, save many, store all, bulk import, batch save',
           inputSchema: {
             type: 'object',
             properties: {
@@ -185,7 +191,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_batch_delete',
-          description: 'Delete multiple memories by their IDs in a single operation',
+          description:
+            'BATCH DELETE BULK REMOVE - Delete multiple memories at once. Keywords: batch delete, bulk remove, mass delete, delete many, remove all, clear multiple',
           inputSchema: {
             type: 'object',
             properties: {
@@ -200,7 +207,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_graph_search',
-          description: 'Search memories with relationship traversal',
+          description:
+            'GRAPH RELATED CONNECTED NETWORK - Search memories and traverse relationships to find connected information. Keywords: graph, related, connected, network, relationships, linked, associated, traverse connections',
           inputSchema: {
             type: 'object',
             properties: {
@@ -217,7 +225,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_consolidate',
-          description: 'Consolidate similar memories into clusters',
+          description:
+            'CONSOLIDATE MERGE CLUSTER DEDUPLICATE - Group and merge similar memories to reduce redundancy. Keywords: consolidate, merge, cluster, deduplicate, group, combine, compress, organize',
           inputSchema: {
             type: 'object',
             properties: {
@@ -229,7 +238,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_stats',
-          description: 'Get database statistics and health metrics',
+          description:
+            'STATS STATUS INFO METRICS - Get database statistics, counts, and health metrics. Keywords: stats, status, info, metrics, statistics, counts, summary, overview, database info',
           inputSchema: {
             type: 'object',
             properties: {
@@ -239,7 +249,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_relate',
-          description: 'Create a relationship between two memories',
+          description:
+            'RELATE LINK CONNECT ASSOCIATE - Create a relationship between two memories. Keywords: relate, link, connect, associate, join, bind, reference, attach',
           inputSchema: {
             type: 'object',
             properties: {
@@ -256,7 +267,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_unrelate',
-          description: 'Remove a relationship between two memories',
+          description:
+            'UNRELATE UNLINK DISCONNECT - Remove a relationship between two memories. Keywords: unrelate, unlink, disconnect, detach, unbind, separate',
           inputSchema: {
             type: 'object',
             properties: {
@@ -268,7 +280,8 @@ export class MemoryMcpServer {
         },
         {
           name: 'memory_get_relations',
-          description: 'Get all relationships for a specific memory',
+          description:
+            'GET RELATIONS SHOW LINKS - Get all relationships for a specific memory. Keywords: get relations, show links, list connections, view relationships, find associations',
           inputSchema: {
             type: 'object',
             properties: {
