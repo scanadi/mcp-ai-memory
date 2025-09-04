@@ -14,7 +14,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
       AND deleted_at IS NULL
   `.execute(db);
 
-  const jsonEmbeddingsCount = Number((checkResult.rows[0] as any)?.count || 0);
+  const jsonEmbeddingsCount = Number((checkResult.rows[0] as { count?: number })?.count || 0);
 
   if (jsonEmbeddingsCount > 0) {
     console.log(`[Migration 003] Found ${jsonEmbeddingsCount} embeddings stored as JSON strings. Converting...`);
@@ -101,7 +101,9 @@ export async function up(db: Kysely<Database>): Promise<void> {
         AND embedding::text LIKE '[%'
     `.execute(db);
 
-    console.log(`[Migration 003] Verified ${(testResult.rows[0] as any)?.count || 0} embeddings are now in vector format`);
+    console.log(
+      `[Migration 003] Verified ${(testResult.rows[0] as { count?: number })?.count || 0} embeddings are now in vector format`
+    );
   } catch (error) {
     console.error('[Migration 003] Could not verify embeddings:', error);
   }
