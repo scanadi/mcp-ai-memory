@@ -1,6 +1,6 @@
 {
   "name": "mcp-ai-memory",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A production-ready Model Context Protocol (MCP) server for semantic memory management",
   "type": "module",
   "author": "",
