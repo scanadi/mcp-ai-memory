@@ -13,6 +13,7 @@ import type {
 } from '../schemas/validation.js';
 import type { Database, Memory, MemoryRelation, NewMemory } from '../types/database.js';
 import type { JsonValue } from '../types/database-generated.js';
+import { extractTextForEmbedding } from '../utils/text-extraction.js';
 import { getCacheService } from './cache-service.js';
 import { ClusteringService } from './clustering-service.js';
 import { CompressionService } from './compression-service.js';
@@ -128,8 +129,10 @@ export class MemoryService {
       // Store memory without embedding first
       embedding = null;
     } else {
-      // Generate embedding synchronously (fallback) - use original content for embeddings
-      embedding = await this.embeddingService.generateEmbedding(originalContentString);
+      // Generate embedding synchronously (fallback)
+      // Extract meaningful text from content for better semantic search
+      const textForEmbedding = extractTextForEmbedding(input.content, input.tags, input.type);
+      embedding = await this.embeddingService.generateEmbedding(textForEmbedding);
       embeddingDimension = embedding ? embedding.length : undefined;
     }
 
@@ -159,8 +162,8 @@ export class MemoryService {
     // Queue embedding generation if async
     if (useAsyncEmbedding && config.ENABLE_ASYNC_PROCESSING && !embedding) {
       await queueService.addEmbeddingJob({
-        // Generate embedding from original content for better semantic fidelity
-        content: originalContentString,
+        // The worker will extract text from the stored memory
+        content: '', // Not needed anymore, worker gets it from DB
         memoryId: result.id,
         priority: input.importance_score ? Math.round(input.importance_score * 10) : 5,
       });
@@ -198,6 +201,10 @@ export class MemoryService {
 
     console.log(`[MemoryService] Search query: "${input.query}", embedding dimension: ${queryDimension}`);
 
+    // Check if the query looks like a tag search (single word, lowercase)
+    const queryWords = input.query.toLowerCase().split(/\s+/);
+    const isLikelyTagSearch = queryWords.length <= 2;
+
     let query = this.db
       .selectFrom('memories')
       .selectAll()
@@ -209,6 +216,26 @@ export class MemoryService {
     // Filter by user_context (default to 'default' if not provided)
     const searchUserContext = input.user_context || 'default';
     query = query.where('user_context', '=', searchUserContext);
+
+    // For likely tag searches, also include memories where the query matches tags
+    if (isLikelyTagSearch) {
+      const tagConditions = queryWords.map(
+        (word) => sql<boolean>`EXISTS (SELECT 1 FROM unnest(tags) AS tag WHERE lower(tag) LIKE ${`%${word}%`})`
+      );
+
+      query = query.where((eb) =>
+        eb.or([
+          // Semantic similarity
+          eb(
+            sql<number>`1 - (embedding::vector <=> ${embeddingString}::vector)`,
+            '>=',
+            input.threshold ?? config.DEFAULT_SIMILARITY_THRESHOLD
+          ),
+          // Direct tag matching (case-insensitive)
+          eb.or(tagConditions),
+        ])
+      );
+    }
 
     // Apply filters
     if (input.type) {
@@ -224,8 +251,13 @@ export class MemoryService {
     // Use the values from input (which should already have defaults from schema validation)
     const threshold = input.threshold ?? config.DEFAULT_SIMILARITY_THRESHOLD; // Fallback to config if undefined
     const limit = input.limit ?? 10; // Fallback default
+
+    // Only apply threshold if not doing tag search (already applied above)
+    if (!isLikelyTagSearch) {
+      query = query.where(sql`1 - (embedding::vector <=> ${embeddingString}::vector)`, '>=', threshold);
+    }
+
     const results = await query
-      .where(sql`1 - (embedding::vector <=> ${embeddingString}::vector)`, '>=', threshold)
       .orderBy(sql`1 - (embedding::vector <=> ${embeddingString}::vector)`, 'desc')
       .limit(limit)
       .execute();

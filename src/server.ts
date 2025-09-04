@@ -27,6 +27,7 @@ import {
 import { decayService } from './services/decayService.js';
 import { MemoryService } from './services/memory-service.js';
 import { traversalService } from './services/traversalService.js';
+import { formatMemoriesForAI } from './utils/memory-formatter.js';
 
 export class MemoryMcpServer {
   private server: Server;
@@ -405,12 +406,12 @@ export class MemoryMcpServer {
           case 'memory_search': {
             const validated = SearchMemorySchema.parse(args);
             const results = await this.memoryService.search(validated);
-            const resultsWithoutEmbeddings = results.map(({ embedding, ...rest }) => rest);
+            const formattedResults = formatMemoriesForAI(results);
             return {
               content: [
                 {
                   type: 'text',
-                  text: JSON.stringify(resultsWithoutEmbeddings, null, 2),
+                  text: JSON.stringify(formattedResults, null, 2),
                 },
               ],
             };
@@ -419,12 +420,12 @@ export class MemoryMcpServer {
           case 'memory_list': {
             const validated = ListMemorySchema.parse(args);
             const results = await this.memoryService.list(validated);
-            const resultsWithoutEmbeddings = results.map(({ embedding, ...rest }) => rest);
+            const formattedResults = formatMemoriesForAI(results);
             return {
               content: [
                 {
                   type: 'text',
-                  text: JSON.stringify(resultsWithoutEmbeddings, null, 2),
+                  text: JSON.stringify(formattedResults, null, 2),
                 },
               ],
             };

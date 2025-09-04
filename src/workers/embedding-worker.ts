@@ -5,6 +5,7 @@ import { config } from '../config/index.js';
 import { db } from '../database/index.js';
 import { EmbeddingService } from '../services/embedding-service.js';
 import type { EmbeddingJob } from '../services/queue-service.js';
+import { extractTextForEmbedding } from '../utils/text-extraction.js';
 
 export class EmbeddingWorker {
   private worker: Worker<EmbeddingJob>;
@@ -40,7 +41,7 @@ export class EmbeddingWorker {
   }
 
   private async processEmbedding(job: Job<EmbeddingJob>): Promise<void> {
-    const { content, memoryId } = job.data;
+    const { memoryId } = job.data;
     const startTime = Date.now();
 
     try {
@@ -48,10 +49,10 @@ export class EmbeddingWorker {
       await job.log(`Starting embedding generation for memory ${memoryId}`);
       await job.updateProgress(10);
 
-      // Check if embedding already exists (idempotency)
+      // Check if embedding already exists and get memory details
       const existingMemory = await db
         .selectFrom('memories')
-        .select(['id', 'embedding'])
+        .select(['id', 'embedding', 'content', 'tags', 'type', 'source'])
         .where('id', '=', memoryId)
         .executeTakeFirst();
 
@@ -60,11 +61,31 @@ export class EmbeddingWorker {
         return;
       }
 
+      if (!existingMemory) {
+        throw new Error(`Memory ${memoryId} not found`);
+      }
+
       await job.updateProgress(30);
 
-      // Generate embedding
-      await job.log('Generating embedding...');
-      const embedding = await this.embeddingService.generateEmbedding(content);
+      // Generate embedding from extracted text for better semantic search
+      await job.log('Extracting text and generating embedding...');
+
+      // Parse the content if it's stored as JSON string
+      let parsedContent: unknown;
+      try {
+        parsedContent =
+          typeof existingMemory.content === 'string' ? JSON.parse(existingMemory.content) : existingMemory.content;
+      } catch {
+        parsedContent = existingMemory.content;
+      }
+
+      const textForEmbedding = extractTextForEmbedding(
+        parsedContent,
+        existingMemory.tags || undefined,
+        existingMemory.type
+      );
+
+      const embedding = await this.embeddingService.generateEmbedding(textForEmbedding);
 
       await job.updateProgress(70);
 

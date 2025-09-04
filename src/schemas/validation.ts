@@ -69,7 +69,7 @@ export const SearchMemorySchema = z.object({
   type: MemoryTypeSchema.optional(),
   tags: z.array(z.string().transform(sanitizeTag)).optional(),
   limit: z.number().int().min(1).max(100).default(10),
-  threshold: z.number().min(0).max(1).default(0.7),
+  threshold: z.number().min(0).max(1).default(0.35),
   user_context: z.string().max(MAX_USER_CONTEXT_LENGTH).transform(sanitizeString).optional(),
   include_relations: z.boolean().default(false),
 });

@@ -7,6 +7,7 @@ export class CacheService {
   private redis: Redis | null = null;
   private localCache: NodeCache;
   private isRedisAvailable = false;
+  static getInstance: () => CacheService;
 
   constructor() {
     // Local in-memory cache as fallback
@@ -243,3 +244,8 @@ export function getCacheService(): CacheService {
   }
   return cacheInstance;
 }
+
+// Add static getInstance method to match other services
+CacheService.getInstance = (): CacheService => {
+  return getCacheService();
+};

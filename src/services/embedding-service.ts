@@ -142,4 +142,8 @@ export class EmbeddingService {
   static setExpectedDimension(dimension: number): void {
     EmbeddingService.EXPECTED_DIMENSION = dimension;
   }
+
+  static getInstance(): EmbeddingService {
+    return new EmbeddingService();
+  }
 }
