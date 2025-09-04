@@ -68,12 +68,13 @@ export class EmbeddingWorker {
 
       await job.updateProgress(70);
 
-      // Store embedding in database with dimension
+      // Store embedding in database with dimension (as PostgreSQL vector format)
       await job.log('Storing embedding in database...');
+      const embeddingString = `[${embedding.join(',')}]`;
       await db
         .updateTable('memories')
         .set({
-          embedding: JSON.stringify(embedding),
+          embedding: embeddingString, // Store as PostgreSQL vector format
           embedding_dimension: embedding.length,
           updated_at: new Date(),
         })

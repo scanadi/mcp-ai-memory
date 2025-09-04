@@ -139,7 +139,7 @@ export class MemoryService {
       is_compressed: isCompressed,
       content: JSON.stringify(isCompressed ? { text: contentString } : input.content),
       content_hash: contentHash,
-      embedding: embedding ? JSON.stringify(embedding) : null, // NULL for async processing
+      embedding: embedding ? `[${embedding.join(',')}]` : null, // Store as PostgreSQL vector format
       embedding_dimension: embeddingDimension,
       tags: input.tags || [],
       type: input.type,
@@ -196,10 +196,12 @@ export class MemoryService {
     const queryDimension = queryEmbedding.length;
     const embeddingString = `[${queryEmbedding.join(',')}]`;
 
+    console.log(`[MemoryService] Search query: "${input.query}", embedding dimension: ${queryDimension}`);
+
     let query = this.db
       .selectFrom('memories')
       .selectAll()
-      .select(sql<number>`1 - (embedding <=> ${embeddingString}::vector)`.as('similarity'))
+      .select(sql<number>`1 - (embedding::vector <=> ${embeddingString}::vector)`.as('similarity'))
       .where('deleted_at', 'is', null)
       .where('embedding', 'is not', null) // Exclude memories without embeddings
       .where('embedding_dimension', '=', queryDimension); // Only search memories with matching dimensions
@@ -220,10 +222,12 @@ export class MemoryService {
 
     // Apply similarity threshold and order by similarity
     const results = await query
-      .where(sql`1 - (embedding <=> ${embeddingString}::vector)`, '>=', input.threshold)
-      .orderBy(sql`1 - (embedding <=> ${embeddingString}::vector)`, 'desc')
+      .where(sql`1 - (embedding::vector <=> ${embeddingString}::vector)`, '>=', input.threshold)
+      .orderBy(sql`1 - (embedding::vector <=> ${embeddingString}::vector)`, 'desc')
       .limit(input.limit)
       .execute();
+
+    console.log(`[MemoryService] Search found ${results.length} results with threshold ${input.threshold}`);
 
     // Update access count for returned memories
     if (results.length > 0) {
