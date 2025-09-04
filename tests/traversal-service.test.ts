@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
 import { Kysely, sql } from 'kysely';
-import { createDatabase } from '../src/database/client.js';
+import { createTestDatabase } from './test-setup.js';
 import { TraversalService } from '../src/services/traversalService.js';
 import type { Database } from '../src/types/database.js';
 
@@ -10,7 +10,7 @@ describe('TraversalService', () => {
   let memoryIds: string[] = [];
 
   beforeAll(async () => {
-    db = createDatabase();
+    db = createTestDatabase();
     traversalService = new TraversalService(db);
     
     // Create a graph of test memories
@@ -233,5 +233,144 @@ describe('TraversalService', () => {
     for (let i = 1; i < connectors.length; i++) {
       expect(connectors[i].connectionCount).toBeLessThanOrEqual(connectors[i - 1].connectionCount);
     }
+  });
+
+  test('traverse should respect user context boundaries', async () => {
+    // Try to traverse with wrong user context
+    const result = await traversalService.traverse({
+      startMemoryId: memoryIds[0],
+      userContext: 'different-user',
+      algorithm: 'bfs',
+      maxDepth: 2,
+    });
+    
+    // Should return empty or only accessible memories
+    expect(result.length).toBe(0);
+  });
+
+  test('traverse should exclude soft-deleted memories', async () => {
+    // Soft delete a memory
+    await db
+      .updateTable('memories')
+      .set({ deleted_at: new Date() })
+      .where('id', '=', memoryIds[2])
+      .execute();
+    
+    const result = await traversalService.traverse({
+      startMemoryId: memoryIds[0],
+      userContext: 'test-traversal',
+      algorithm: 'bfs',
+      maxDepth: 2,
+    });
+    
+    // Should not include the soft-deleted memory
+    const resultIds = result.map(r => r.memory.id);
+    expect(resultIds).not.toContain(memoryIds[2]);
+    
+    // Restore the memory for other tests
+    await db
+      .updateTable('memories')
+      .set({ deleted_at: null })
+      .where('id', '=', memoryIds[2])
+      .execute();
+  });
+
+  test('traverse should respect timeout limit', async () => {
+    const startTime = Date.now();
+    
+    const result = await traversalService.traverse({
+      startMemoryId: memoryIds[0],
+      userContext: 'test-traversal',
+      algorithm: 'bfs',
+      maxDepth: 10,
+      maxNodes: 1000,
+      timeoutMs: 100, // Very short timeout
+    });
+    
+    const elapsed = Date.now() - startTime;
+    
+    // Should timeout quickly
+    expect(elapsed).toBeLessThan(200);
+  });
+
+  test('traverse should include parent-child relationships when requested', async () => {
+    // Create a new memory with parent_id to avoid conflicts with existing relations
+    const childMemory = await db
+      .insertInto('memories')
+      .values({
+        user_context: 'test-traversal',
+        content: JSON.stringify({ text: 'Test child with parent' }),
+        content_hash: 'test-parent-child-hash',
+        type: 'fact',
+        source: 'test',
+        confidence: 0.9,
+        importance_score: 0.5,
+        parent_id: memoryIds[0], // Set parent_id directly
+        tags: ['test-parent-child'],
+      })
+      .returning('id')
+      .executeTakeFirst();
+    
+    const result = await traversalService.traverse({
+      startMemoryId: memoryIds[0],
+      userContext: 'test-traversal',
+      algorithm: 'bfs',
+      maxDepth: 2,
+      includeParentLinks: true,
+    });
+    
+    // Should include the child memory traversed via parent_of relation
+    const childNode = result.find(r => r.memory.id === childMemory!.id);
+    expect(childNode).toBeDefined();
+    expect(childNode?.relationFromParent).toBe('parent_of');
+    
+    // Clean up
+    await db
+      .deleteFrom('memories')
+      .where('id', '=', childMemory!.id)
+      .execute();
+  });
+
+  test('rate limiting should prevent excessive requests', async () => {
+    const userContext = 'rate-limit-test';
+    
+    // Create a memory for testing
+    const testMemory = await db
+      .insertInto('memories')
+      .values({
+        user_context: userContext,
+        content: JSON.stringify({ text: 'Rate limit test' }),
+        content_hash: 'rate-limit-hash',
+        type: 'fact',
+        source: 'test',
+        confidence: 0.9,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    
+    // Make many rapid requests to trigger rate limiting
+    const promises = [];
+    for (let i = 0; i < 110; i++) {
+      promises.push(
+        traversalService.traverse({
+          startMemoryId: testMemory.id,
+          userContext,
+          algorithm: 'bfs',
+          maxDepth: 1,
+        })
+      );
+    }
+    
+    // Some requests should fail due to rate limiting
+    const results = await Promise.allSettled(promises);
+    const failures = results.filter(r => r.status === 'rejected');
+    
+    expect(failures.length).toBeGreaterThan(0);
+    
+    // Clean up
+    await db
+      .deleteFrom('memories')
+      .where('id', '=', testMemory.id)
+      .execute();
   });
 });

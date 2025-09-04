@@ -6,9 +6,9 @@ import { decayService } from '../services/decayService.js';
 import { logger } from '../utils/logger.js';
 
 export interface DecayJob {
-  userContext: string;
+  userContext?: string;
   batchSize?: number;
-  type: 'scheduled' | 'manual';
+  type: 'scheduled' | 'manual' | 'cleanup';
 }
 
 export class DecayWorker {
@@ -50,6 +50,30 @@ export class DecayWorker {
     const startTime = Date.now();
 
     try {
+      // Handle cleanup job
+      if (type === 'cleanup') {
+        await job.log('Starting expired memory cleanup');
+        await job.updateProgress(10);
+
+        const cleanupStats = await decayService.cleanupExpiredMemories(30, batchSize);
+
+        await job.updateProgress(80);
+        await job.log(`Cleanup completed: ${cleanupStats.deleted} deleted, ${cleanupStats.errors} errors`);
+
+        await this.updateMetrics(
+          { processed: cleanupStats.deleted, transitioned: 0, errors: cleanupStats.errors },
+          Date.now() - startTime
+        );
+
+        await job.updateProgress(100);
+        return;
+      }
+
+      // Handle regular decay processing
+      if (!userContext) {
+        throw new Error('User context is required for decay processing');
+      }
+
       await job.log(`Starting decay processing for context ${userContext} (${type})`);
       await job.updateProgress(10);
 
@@ -127,6 +151,25 @@ export class DecayWorker {
 
         logger.info(`Scheduled decay job for context: ${user_context}`);
       }
+
+      // Schedule daily cleanup of permanently expired memories
+      await this.queue.add(
+        'cleanup-expired',
+        { type: 'cleanup' },
+        {
+          repeat: {
+            pattern: '0 3 * * *', // Daily at 3 AM
+          },
+          removeOnComplete: {
+            age: 86400 * 7, // Keep for 7 days
+            count: 10,
+          },
+          removeOnFail: {
+            age: 604800 * 4, // Keep failed jobs for 4 weeks
+          },
+        }
+      );
+      logger.info('Scheduled daily cleanup job for expired memories');
     } catch (error) {
       logger.error('Failed to schedule recurring decay jobs:', error);
     }

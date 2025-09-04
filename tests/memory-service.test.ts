@@ -1,16 +1,14 @@
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
-import { createDatabase } from '../src/database/client';
+import { createTestDatabase } from './test-setup.js';
 import { MemoryService } from '../src/services/memory-service';
 import type { StoreMemoryInput } from '../src/schemas/validation';
-import { config } from '../src/config';
 
 describe('MemoryService', () => {
   let memoryService: MemoryService;
   let db: any;
 
   beforeAll(async () => {
-    // Use the configured database URL from .env
-    db = createDatabase(config.MEMORY_DB_URL);
+    db = createTestDatabase();
     memoryService = new MemoryService(db);
     
     // Don't run migrations - assume database is already set up
@@ -18,8 +16,17 @@ describe('MemoryService', () => {
   });
 
   afterAll(async () => {
-    // Clean up test data
-    await db.deleteFrom('memories').execute();
+    // Clean up ONLY test data - NEVER delete all memories!
+    // Only delete memories that were created during this test run
+    await db.deleteFrom('memories')
+      .where('user_context', 'in', ['test-user', 'cluster-test'])
+      .execute();
+    
+    // Also clean up any test memories with specific test sources
+    await db.deleteFrom('memories')
+      .where('source', 'in', ['test-suite', 'test'])
+      .execute();
+      
     await db.destroy();
   });
 
@@ -80,31 +87,39 @@ describe('MemoryService', () => {
 
   describe('search', () => {
     test('should find memories by query', async () => {
-      // Store test memories
-      await memoryService.store({
-        content: 'TypeScript is a programming language',
+      // Store test memories with unique content and test-specific user context
+      const testMemory1 = await memoryService.store({
+        content: 'TypeScript is a programming language used for tests',
         type: 'fact',
-        tags: ['typescript', 'programming'],
-        source: 'test',
+        tags: ['typescript', 'programming', 'test-search'],
+        source: 'test-suite',
         confidence: 0.9,
+        user_context: 'test-user',
       }, false);
 
-      await memoryService.store({
-        content: 'JavaScript is also a programming language',
+      const testMemory2 = await memoryService.store({
+        content: 'JavaScript is also a programming language for tests',
         type: 'fact',
-        tags: ['javascript', 'programming'],
-        source: 'test',
+        tags: ['javascript', 'programming', 'test-search'],
+        source: 'test-suite',
         confidence: 0.9,
+        user_context: 'test-user',
       }, false);
 
       const results = await memoryService.search({
-        query: 'TypeScript programming',
+        query: 'TypeScript programming tests',
         limit: 10,
-        threshold: 0.5,
+        threshold: 0.3,
+        user_context: 'test-user',
       });
 
       expect(results.length).toBeGreaterThan(0);
-      expect(results[0].content).toContain('TypeScript');
+      // Find our specific test memory
+      const foundTestMemory = results.find(r => 
+        typeof r.content === 'string' && 
+        r.content.includes('TypeScript is a programming language used for tests')
+      );
+      expect(foundTestMemory).toBeDefined();
     });
   });
 

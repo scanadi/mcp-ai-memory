@@ -272,6 +272,72 @@ export class DecayService {
       isPreserved,
     };
   }
+
+  /**
+   * Permanently delete soft-deleted memories after retention period
+   */
+  async cleanupExpiredMemories(retentionDays = 30, batchSize = 100): Promise<{ deleted: number; errors: number }> {
+    const stats = { deleted: 0, errors: 0 };
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+    try {
+      // First, get the IDs of memories to delete
+      const expiredMemories = await this.db
+        .selectFrom('memories')
+        .select(['id'])
+        .where('deleted_at', 'is not', null)
+        .where('deleted_at', '<', cutoffDate)
+        .where('state', '=', 'expired')
+        .limit(batchSize)
+        .execute();
+
+      if (expiredMemories.length === 0) {
+        return stats;
+      }
+
+      const memoryIds = expiredMemories.map((m) => m.id);
+
+      // Delete related records first (due to foreign key constraints)
+      await this.db
+        .deleteFrom('memory_relations')
+        .where((eb) => eb.or([eb('from_memory_id', 'in', memoryIds), eb('to_memory_id', 'in', memoryIds)]))
+        .execute();
+
+      // Delete the memories
+      await this.db.deleteFrom('memories').where('id', 'in', memoryIds).execute();
+
+      stats.deleted = memoryIds.length;
+
+      logger.info(`Permanently deleted ${stats.deleted} expired memories`);
+    } catch (error) {
+      logger.error('Error cleaning up expired memories:', error);
+      stats.errors++;
+    }
+
+    return stats;
+  }
+
+  /**
+   * Schedule periodic cleanup of expired memories
+   */
+  async scheduleCleanup(intervalHours = 24): Promise<void> {
+    // Run cleanup immediately
+    await this.cleanupExpiredMemories();
+
+    // Schedule periodic cleanup
+    setInterval(
+      async () => {
+        try {
+          const result = await this.cleanupExpiredMemories();
+          logger.info(`Cleanup completed: ${result.deleted} deleted, ${result.errors} errors`);
+        } catch (error) {
+          logger.error('Scheduled cleanup failed:', error);
+        }
+      },
+      intervalHours * 60 * 60 * 1000
+    );
+  }
 }
 
 export const decayService = new DecayService();

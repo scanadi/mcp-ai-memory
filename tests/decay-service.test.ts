@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
 import { Kysely, sql } from 'kysely';
-import { createDatabase } from '../src/database/client.js';
+import { createTestDatabase } from './test-setup.js';
 import { DecayService } from '../src/services/decayService.js';
 import type { Database, Memory } from '../src/types/database.js';
 
@@ -10,7 +10,7 @@ describe('DecayService', () => {
   let testMemoryId: string;
 
   beforeAll(async () => {
-    db = createDatabase();
+    db = createTestDatabase();
     decayService = new DecayService({}, db);
     
     // Create a test memory

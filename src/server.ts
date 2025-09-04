@@ -36,7 +36,7 @@ export class MemoryMcpServer {
     this.server = new Server(
       {
         name: 'memory-server',
-        version: '1.0.6',
+        version: '1.1.0',
       },
       {
         capabilities: {

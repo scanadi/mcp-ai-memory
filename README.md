@@ -198,12 +198,18 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 ### Advanced Operations
 - `memory_batch` - BATCH BULK IMPORT - Store multiple memories efficiently
 - `memory_batch_delete` - Delete multiple memories at once
-- `memory_graph_search` - GRAPH RELATED - Search with relationship traversal
+- `memory_graph_search` - GRAPH RELATED - Search with relationship traversal (alias for memory_traverse)
 - `memory_consolidate` - MERGE CLUSTER - Group similar memories
 - `memory_stats` - STATS INFO - Database statistics
 - `memory_relate` - LINK CONNECT - Create memory relationships
 - `memory_unrelate` - UNLINK DISCONNECT - Remove relationships
 - `memory_get_relations` - Show all relationships for a memory
+
+### Graph & Decay Operations (New)
+- `memory_traverse` - TRAVERSE EXPLORE - Traverse memory graph with BFS/DFS algorithms
+- `memory_graph_analysis` - ANALYZE CONNECTIONS - Analyze graph connectivity and relationship patterns
+- `memory_decay_status` - DECAY STATUS - Check decay status of a memory
+- `memory_preserve` - PRESERVE PROTECT - Preserve important memories from decay
 
 ## Resources
 

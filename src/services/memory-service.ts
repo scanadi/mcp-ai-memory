@@ -756,43 +756,19 @@ export class MemoryService {
       throw new Error(`Target memory ${toMemoryId} not found`);
     }
 
-    // Check if relationship already exists
-    const existing = await this.db
-      .selectFrom('memory_relations')
-      .selectAll()
-      .where('from_memory_id', '=', fromMemoryId)
-      .where('to_memory_id', '=', toMemoryId)
-      .executeTakeFirst();
-
-    if (existing) {
-      // Update existing relationship
-      const updated = await this.db
-        .updateTable('memory_relations')
-        .set({
-          relation_type: relationType,
-          strength: Math.max(0, Math.min(1, strength)), // Clamp between 0 and 1
-        })
-        .where('id', '=', existing.id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
-
-      // Invalidate cache for both memories
-      await Promise.all([this.cache.invalidateMemory(fromMemoryId), this.cache.invalidateMemory(toMemoryId)]);
-
-      return updated;
-    }
-
-    // Create new relationship
-    const relation = await this.db
-      .insertInto('memory_relations')
-      .values({
-        from_memory_id: fromMemoryId,
-        to_memory_id: toMemoryId,
-        relation_type: relationType,
-        strength: Math.max(0, Math.min(1, strength)), // Clamp between 0 and 1
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    // Use PostgreSQL's ON CONFLICT for atomic upsert
+    // Note: UNIQUE constraint is now on (from_memory_id, to_memory_id) only
+    const relation = (await sql<MemoryRelation>`
+      INSERT INTO memory_relations (from_memory_id, to_memory_id, relation_type, strength)
+      VALUES (${fromMemoryId}, ${toMemoryId}, ${relationType}, ${Math.max(0, Math.min(1, strength))})
+      ON CONFLICT (from_memory_id, to_memory_id)
+      DO UPDATE SET
+        relation_type = EXCLUDED.relation_type,
+        strength = EXCLUDED.strength
+      RETURNING *
+    `
+      .execute(this.db)
+      .then((result) => result.rows[0])) as MemoryRelation;
 
     // Invalidate cache for both memories
     await Promise.all([this.cache.invalidateMemory(fromMemoryId), this.cache.invalidateMemory(toMemoryId)]);

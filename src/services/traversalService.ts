@@ -1,4 +1,6 @@
+import Redis from 'ioredis';
 import { type Kysely, sql } from 'kysely';
+import { config } from '../config/index.js';
 import { db } from '../database/index.js';
 import type { Database, Memory } from '../types/database.js';
 import { logger } from '../utils/logger.js';
@@ -25,9 +27,39 @@ export interface GraphNode {
 
 export class TraversalService {
   private db: Kysely<Database>;
+  private redis: Redis | null = null;
+  private rateLimitMap: Map<string, { count: number; resetTime: number }> = new Map();
+  private readonly MAX_REQUESTS_PER_MINUTE = 100;
+  private readonly RATE_LIMIT_WINDOW = 60; // seconds
 
   constructor(database?: Kysely<Database>) {
     this.db = database || db;
+    this.initRedis();
+  }
+
+  private initRedis(): void {
+    try {
+      if (config.REDIS_URL) {
+        this.redis = new Redis(config.REDIS_URL, {
+          maxRetriesPerRequest: 3,
+          enableReadyCheck: true,
+          lazyConnect: true,
+        });
+
+        this.redis.on('error', (err) => {
+          logger.warn('Redis rate limiter error (falling back to in-memory):', err);
+          // Don't throw - fall back to in-memory rate limiting
+        });
+
+        this.redis.connect().catch((err) => {
+          logger.warn('Failed to connect to Redis for rate limiting:', err);
+          this.redis = null;
+        });
+      }
+    } catch (error) {
+      logger.warn('Redis initialization failed for rate limiting:', error);
+      this.redis = null;
+    }
   }
 
   async traverse(options: TraversalOptions): Promise<GraphNode[]> {
@@ -43,6 +75,9 @@ export class TraversalService {
       includeParentLinks = false,
       timeoutMs = 5000,
     } = options;
+
+    // Apply rate limiting
+    await this.checkRateLimit(userContext);
 
     const startTime = Date.now();
     const visited = new Set<string>();
@@ -266,6 +301,60 @@ export class TraversalService {
     };
   }
 
+  private async checkRateLimit(userContext: string): Promise<void> {
+    // Try Redis first, fall back to in-memory
+    if (this.redis) {
+      try {
+        const key = `traversal:ratelimit:${userContext}`;
+
+        // Use Redis INCR with expiry
+        const count = await this.redis.incr(key);
+
+        if (count === 1) {
+          // First request in window - set expiry
+          await this.redis.expire(key, this.RATE_LIMIT_WINDOW);
+        }
+
+        if (count > this.MAX_REQUESTS_PER_MINUTE) {
+          const ttl = await this.redis.ttl(key);
+          throw new Error(
+            `Rate limit exceeded for user ${userContext}. Please wait ${ttl} seconds before making more requests.`
+          );
+        }
+
+        return; // Redis rate limit successful
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Rate limit exceeded')) {
+          throw error; // Re-throw rate limit errors
+        }
+        // For other Redis errors, fall back to in-memory
+        logger.debug('Redis rate limit check failed, using in-memory:', error);
+      }
+    }
+
+    // In-memory fallback
+    const now = Date.now();
+    const userLimit = this.rateLimitMap.get(userContext);
+
+    if (!userLimit || now > userLimit.resetTime) {
+      // Reset rate limit window
+      this.rateLimitMap.set(userContext, {
+        count: 1,
+        resetTime: now + this.RATE_LIMIT_WINDOW * 1000,
+      });
+      return;
+    }
+
+    if (userLimit.count >= this.MAX_REQUESTS_PER_MINUTE) {
+      const secondsLeft = Math.ceil((userLimit.resetTime - now) / 1000);
+      throw new Error(
+        `Rate limit exceeded for user ${userContext}. Please wait ${secondsLeft} seconds before making more requests.`
+      );
+    }
+
+    userLimit.count++;
+  }
+
   async findTopConnectors(
     userContext: string,
     limit: number = 10
@@ -300,6 +389,16 @@ export class TraversalService {
       type: r.type,
       tags: r.tags || [],
     }));
+  }
+
+  /**
+   * Clean up resources (Redis connection)
+   */
+  async cleanup(): Promise<void> {
+    if (this.redis) {
+      await this.redis.quit();
+      this.redis = null;
+    }
   }
 }
 
