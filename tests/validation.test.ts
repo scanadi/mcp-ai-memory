@@ -116,7 +116,7 @@ describe('Validation Schemas', () => {
 
       const result = SearchMemorySchema.parse(input);
       expect(result.limit).toBe(10);
-      expect(result.threshold).toBe(0.7);
+      expect(result.threshold).toBe(0.35);
     });
 
     test('should reject invalid limit', () => {
