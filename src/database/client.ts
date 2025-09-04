@@ -1,9 +1,9 @@
 import { Kysely, PostgresDialect } from 'kysely';
 import { Pool } from 'pg';
-import type { Database } from '../types/database.js';
+import type { DB } from '../types/database-generated.js';
 
-export function createDatabase(connectionString: string): Kysely<Database> {
-  return new Kysely<Database>({
+export function createDatabase(connectionString: string): Kysely<DB> {
+  return new Kysely<DB>({
     dialect: new PostgresDialect({
       pool: new Pool({
         connectionString,
@@ -16,13 +16,13 @@ export function createDatabase(connectionString: string): Kysely<Database> {
 }
 
 export class DatabaseClient {
-  private db: Kysely<Database>;
+  private db: Kysely<DB>;
 
   constructor(connectionString: string) {
     this.db = createDatabase(connectionString);
   }
 
-  get instance(): Kysely<Database> {
+  get instance(): Kysely<DB> {
     return this.db;
   }
 

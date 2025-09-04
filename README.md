@@ -9,16 +9,24 @@ A production-ready Model Context Protocol (MCP) server for semantic memory manag
 
 ## Features
 
+### Core Capabilities
 - **TypeScript** - Full type safety with strict mode
 - **PostgreSQL + pgvector** - Vector similarity search with HNSW indexing
 - **Kysely ORM** - Type-safe SQL queries
 - **Local Embeddings** - Uses Transformers.js (no API calls)
 - **Intelligent Caching** - Redis + in-memory fallback for blazing fast performance
 - **Multi-Agent Support** - User context isolation
-- **Memory Relationships** - Graph structure for connected knowledge
+- **Token Efficient** - Embeddings removed from responses
+
+### Advanced Memory Management
+- **Graph Relationships** - Rich relationship types (references, contradicts, supports, extends, causes, precedes, etc.)
+- **Graph Traversal** - BFS/DFS algorithms with depth limits and filtering
+- **Memory Decay** - Automatic lifecycle management with exponential decay
+- **Memory States** - Active, dormant, archived, and expired states
+- **Preservation** - Protect important memories from decay
 - **Soft Deletes** - Data recovery with deleted_at timestamps
 - **Clustering** - Automatic memory consolidation
-- **Token Efficient** - Embeddings removed from responses
+- **Compression** - Automatic compression of archived memories
 
 ## Prerequisites
 

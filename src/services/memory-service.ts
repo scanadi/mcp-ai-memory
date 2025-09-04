@@ -12,6 +12,7 @@ import type {
   UpdateMemoryInput,
 } from '../schemas/validation.js';
 import type { Database, Memory, MemoryRelation, NewMemory } from '../types/database.js';
+import type { JsonValue } from '../types/database-generated.js';
 import { getCacheService } from './cache-service.js';
 import { ClusteringService } from './clustering-service.js';
 import { CompressionService } from './compression-service.js';
@@ -82,7 +83,7 @@ export class MemoryService {
     if (originalContentString.length > this.COMPRESSION_THRESHOLD) {
       const tempMemory: Memory = {
         id: crypto.randomUUID(),
-        content: { text: originalContentString } as Record<string, unknown>,
+        content: JSON.parse(JSON.stringify({ text: originalContentString })) as JsonValue,
         user_context: input.user_context || 'default',
         type: input.type,
         tags: input.tags || [],
@@ -104,6 +105,9 @@ export class MemoryService {
         importance_score: 0.5,
         decay_rate: 0.1,
         is_compressed: false,
+        decay_score: 1.0,
+        last_decay_update: new Date(),
+        state: 'active',
       };
       const compressedResult = await this.compressionService.compressMemory(tempMemory);
       contentString = compressedResult.compressedContent;
@@ -493,7 +497,7 @@ export class MemoryService {
             return {
               ...memory,
               // Keep as object to satisfy type expectations
-              content: { text: decompressed.decompressedContent } as unknown as Record<string, unknown>,
+              content: JSON.parse(JSON.stringify({ text: decompressed.decompressedContent })) as JsonValue,
               is_compressed: false, // Mark as decompressed for client
             };
           } catch (error) {
@@ -715,7 +719,18 @@ export class MemoryService {
   async createRelation(
     fromMemoryId: string,
     toMemoryId: string,
-    relationType: 'references' | 'contradicts' | 'supports' | 'extends',
+    relationType:
+      | 'references'
+      | 'contradicts'
+      | 'supports'
+      | 'extends'
+      | 'causes'
+      | 'caused_by'
+      | 'precedes'
+      | 'follows'
+      | 'part_of'
+      | 'contains'
+      | 'relates_to',
     strength = 0.5
   ): Promise<MemoryRelation> {
     // Validate both memories exist
@@ -844,9 +859,31 @@ export class MemoryService {
   async createBidirectionalRelation(
     memoryId1: string,
     memoryId2: string,
-    relationType: 'references' | 'contradicts' | 'supports' | 'extends',
+    relationType:
+      | 'references'
+      | 'contradicts'
+      | 'supports'
+      | 'extends'
+      | 'causes'
+      | 'caused_by'
+      | 'precedes'
+      | 'follows'
+      | 'part_of'
+      | 'contains'
+      | 'relates_to',
     strength = 0.5,
-    reverseType?: 'references' | 'contradicts' | 'supports' | 'extends'
+    reverseType?:
+      | 'references'
+      | 'contradicts'
+      | 'supports'
+      | 'extends'
+      | 'causes'
+      | 'caused_by'
+      | 'precedes'
+      | 'follows'
+      | 'part_of'
+      | 'contains'
+      | 'relates_to'
   ): Promise<{ forward: MemoryRelation; reverse: MemoryRelation }> {
     // Determine reverse relationship type if not specified
     const reverseRelationType = reverseType || this.getReverseRelationType(relationType);
@@ -861,14 +898,56 @@ export class MemoryService {
   }
 
   private getReverseRelationType(
-    relationType: 'references' | 'contradicts' | 'supports' | 'extends'
-  ): 'references' | 'contradicts' | 'supports' | 'extends' {
+    relationType:
+      | 'references'
+      | 'contradicts'
+      | 'supports'
+      | 'extends'
+      | 'causes'
+      | 'caused_by'
+      | 'precedes'
+      | 'follows'
+      | 'part_of'
+      | 'contains'
+      | 'relates_to'
+  ):
+    | 'references'
+    | 'contradicts'
+    | 'supports'
+    | 'extends'
+    | 'causes'
+    | 'caused_by'
+    | 'precedes'
+    | 'follows'
+    | 'part_of'
+    | 'contains'
+    | 'relates_to' {
     // Define reverse relationship mappings
-    const reverseMap: Record<string, 'references' | 'contradicts' | 'supports' | 'extends'> = {
+    const reverseMap: Record<
+      string,
+      | 'references'
+      | 'contradicts'
+      | 'supports'
+      | 'extends'
+      | 'causes'
+      | 'caused_by'
+      | 'precedes'
+      | 'follows'
+      | 'part_of'
+      | 'contains'
+      | 'relates_to'
+    > = {
       references: 'references', // Bidirectional
       contradicts: 'contradicts', // Bidirectional
       supports: 'supports', // Bidirectional
       extends: 'references', // If A extends B, then B is referenced by A
+      causes: 'caused_by', // If A causes B, then B is caused_by A
+      caused_by: 'causes', // If A is caused_by B, then B causes A
+      precedes: 'follows', // If A precedes B, then B follows A
+      follows: 'precedes', // If A follows B, then B precedes A
+      part_of: 'contains', // If A is part_of B, then B contains A
+      contains: 'part_of', // If A contains B, then B is part_of A
+      relates_to: 'relates_to', // Bidirectional
     };
 
     return reverseMap[relationType] || relationType;

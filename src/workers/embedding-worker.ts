@@ -68,12 +68,13 @@ export class EmbeddingWorker {
 
       await job.updateProgress(70);
 
-      // Store embedding in database
+      // Store embedding in database with dimension
       await job.log('Storing embedding in database...');
       await db
         .updateTable('memories')
         .set({
           embedding: JSON.stringify(embedding),
+          embedding_dimension: embedding.length,
           updated_at: new Date(),
         })
         .where('id', '=', memoryId)

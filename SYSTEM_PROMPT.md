@@ -14,7 +14,8 @@ You have access to a persistent memory system through MCP (Model Context Protoco
 - Required: `content`, `type`, `source`, `confidence`. Optional: `tags`, `user_context`, `relate_to`.
 
 3) Use relationships and graph when needed
-- For connected context, use `memory_graph_search` (depth 1–3). Create links with `memory_relate`.
+- For connected context, use `memory_traverse` (depth 1–3). Create links with `memory_relate`.
+- Note: `memory_graph_search` is now an alias for `memory_traverse` (backward compatibility).
 
 4) Keep limits low by default
 - Default 10 is usually enough. Only increase if results are insufficient.
@@ -72,7 +73,7 @@ For best results:
 - `type`: Filter by memory type
 - `tags`: Filter by tags
 - `user_context`: User identifier for multi-user scenarios
-- `include_relations`: Hint to include related context; to traverse relationships use `memory_graph_search`
+- `include_relations`: Hint to include related context; to traverse relationships use `memory_traverse`
 
 **Example queries**:
 - "user name preferences personal details"
@@ -131,14 +132,45 @@ Store multiple memories at once (for bulk imports)
 #### memory_batch_delete
 Delete multiple memories at once
 
-#### memory_graph_search
-Search with relationship traversal (explores connected memories). Supports `depth` 1–3 (default 1)
+#### memory_traverse
+Traverse memory graph using BFS/DFS algorithms with filtering options:
+- `algorithm`: 'bfs' or 'dfs' (default: 'bfs')
+- `max_depth`: 1-5 (default: 3)
+- `max_nodes`: Maximum nodes to return (default: 100)
+- `relation_types`: Filter by specific relation types
+- `memory_types`: Filter by memory types
+- `tags`: Filter by tags
+- `include_parent_links`: Include parent-child relationships (default: false)
+
+#### memory_graph_search (Deprecated - use memory_traverse)
+Alias for memory_traverse for backward compatibility
+
+#### memory_decay_status
+Get decay and lifecycle information for a memory:
+- Shows current state (active/dormant/archived/expired)
+- Decay score (0-1)
+- Last decay update time
+- Predicted next state
+- Preservation status
+
+#### memory_preserve
+Preserve a memory from decay:
+- Adds preservation tag
+- Resets decay score to 1.0
+- Optional `until` date for temporary preservation
+
+#### memory_graph_analysis
+Analyze graph connectivity for a memory:
+- In-degree and out-degree counts
+- Total connections
+- Relation type distribution
 
 #### memory_consolidate
 Cluster and merge similar memories (defaults: threshold 0.8, min_cluster_size 3)
 
 #### memory_relate / memory_unrelate
 Create or remove relationships between memories
+Relation types: references, contradicts, supports, extends, causes, caused_by, precedes, follows, part_of, contains, relates_to
 
 #### memory_stats
 Database statistics and health metrics
@@ -245,7 +277,7 @@ Use consistent, searchable tags:
 ### Pattern 3: Project Context Loading
 ```
 1. memory_search(query="project [name] decisions architecture")
-2. memory_graph_search(query="project requirements", depth=2)
+2. memory_traverse(start_memory_id="...", max_depth=2, relation_types=["references", "extends"])
 3. Update or store new project decisions
 ```
 

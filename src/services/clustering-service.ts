@@ -2,6 +2,7 @@ import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import { DBSCAN, type DBSCANPoint, IncrementalDBSCAN } from '../algorithms/dbscan.js';
 import type { Database } from '../types/database.js';
+import { parseEmbedding } from '../utils/embedding.js';
 import { getCacheService } from './cache-service.js';
 import type { QueueService } from './queue-service.js';
 
@@ -67,7 +68,21 @@ export class ClusteringService {
       .where('embedding', 'is not', null);
 
     if (filters?.type) {
-      query = query.where('type', '=', filters.type);
+      query = query.where(
+        'type',
+        '=',
+        filters.type as
+          | 'fact'
+          | 'conversation'
+          | 'decision'
+          | 'insight'
+          | 'context'
+          | 'preference'
+          | 'task'
+          | 'error'
+          | 'merged'
+          | 'summary'
+      );
     }
     if (filters?.userId) {
       query = query.where('user_context', '=', filters.userId);
@@ -99,10 +114,16 @@ export class ClusteringService {
     }
 
     // Convert to DBSCAN points
-    const points: DBSCANPoint[] = memories.map((m) => ({
-      id: m.id,
-      embedding: m.embedding as number[],
-    }));
+    const points: DBSCANPoint[] = memories
+      .map((m) => {
+        const embedding = parseEmbedding(m.embedding);
+        if (!embedding) return null;
+        return {
+          id: m.id,
+          embedding,
+        };
+      })
+      .filter((p): p is DBSCANPoint => p !== null);
 
     // Run DBSCAN
     const dbscan = new DBSCAN({
@@ -180,16 +201,31 @@ export class ClusteringService {
       .execute();
 
     // Convert to DBSCAN points
-    const newPoints: DBSCANPoint[] = newMemories.map((m) => ({
-      id: m.id,
-      embedding: m.embedding as number[],
-    }));
+    const newPoints: DBSCANPoint[] = newMemories
+      .map((m) => {
+        const embedding = parseEmbedding(m.embedding);
+        if (!embedding) return null;
+        return {
+          id: m.id,
+          embedding,
+        };
+      })
+      .filter((p): p is DBSCANPoint => p !== null);
 
-    const existingPoints: DBSCANPoint[] = existingMemories.map((m) => ({
-      id: m.id,
-      embedding: m.embedding as number[],
-      clusterId: m.cluster_id ? Number(m.cluster_id) : undefined,
-    }));
+    const existingPoints: DBSCANPoint[] = existingMemories
+      .map((m) => {
+        const embedding = parseEmbedding(m.embedding);
+        if (!embedding) return null;
+        const point: DBSCANPoint = {
+          id: m.id,
+          embedding,
+        };
+        if (m.cluster_id) {
+          point.clusterId = Number(m.cluster_id);
+        }
+        return point;
+      })
+      .filter((p): p is DBSCANPoint => p !== null);
 
     // Run incremental DBSCAN
     const dbscan = new IncrementalDBSCAN({
@@ -281,7 +317,7 @@ export class ClusteringService {
     }
 
     // Calculate centroid
-    const embeddings = members.map((m) => m.embedding as number[]);
+    const embeddings = members.map((m) => parseEmbedding(m.embedding)).filter((e): e is number[] => e !== null);
     const centroid = this.calculateCentroid(embeddings);
 
     // Calculate coherence (average similarity within cluster)
@@ -307,7 +343,7 @@ export class ClusteringService {
       .selectFrom('memories')
       .select(['cluster_id'])
       .select((eb) => eb.fn.count<number>('id').as('size'))
-      .select((eb) => eb.fn<string>('array_agg', [sql`DISTINCT type`]).as('types'))
+      .select(() => sql<string>`array_agg(DISTINCT type)`.as('types'))
       .select((eb) => eb.fn.avg<number>('importance_score').as('avg_importance'))
       .where('cluster_id', 'is not', null)
       .where('deleted_at', 'is', null)
@@ -366,7 +402,7 @@ export class ClusteringService {
       .where('cluster_id', 'is not', null)
       .where('deleted_at', 'is', null)
       .groupBy('cluster_id')
-      .having((eb) => eb.fn.count('id'), '>', maxSize)
+      .having(() => sql`count(id)`, '>', maxSize)
       .execute();
 
     let splitCount = 0;
@@ -384,10 +420,16 @@ export class ClusteringService {
           .where('cluster_id', '=', cluster.cluster_id)
           .execute();
 
-        const points: DBSCANPoint[] = memories.map((m) => ({
-          id: m.id,
-          embedding: m.embedding as number[],
-        }));
+        const points: DBSCANPoint[] = memories
+          .map((m) => {
+            const embedding = parseEmbedding(m.embedding);
+            if (!embedding) return null;
+            return {
+              id: m.id,
+              embedding,
+            };
+          })
+          .filter((p): p is DBSCANPoint => p !== null);
 
         // Use tighter epsilon for splitting
         const dbscan = new DBSCAN({
@@ -420,7 +462,7 @@ export class ClusteringService {
   async queueClusteringJob(filters?: Record<string, unknown>, config?: ClusteringConfig): Promise<string | null> {
     if (!this.queueService) {
       console.warn('Queue service not available, running clustering synchronously');
-      await this.clusterMemories(filters, config);
+      await this.clusterMemories(filters as Parameters<typeof this.clusterMemories>[0], config);
       return null;
     }
 

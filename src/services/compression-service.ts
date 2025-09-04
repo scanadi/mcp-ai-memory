@@ -1,5 +1,7 @@
 import type { Kysely } from 'kysely';
+import { db } from '../database/index.js';
 import type { Database, Memory } from '../types/database.js';
+import type { JsonValue } from '../types/database-generated.js';
 
 export interface CompressionConfig {
   compressionRatio: number; // Target compression ratio (e.g., 0.3 = 30% of original)
@@ -10,7 +12,7 @@ export interface CompressionConfig {
 
 export interface CompressedMemory {
   originalId: string;
-  originalContent: string | Record<string, unknown>;
+  originalContent: JsonValue;
   compressedContent: string;
   compressionLevel: number;
   compressionRatio: number;
@@ -55,7 +57,10 @@ export class CompressionService {
         compressionLevel: 0,
         compressionRatio: 1.0,
         timestamp: new Date(),
-        metadata: memory.metadata || undefined,
+        metadata:
+          typeof memory.metadata === 'object' && memory.metadata !== null && !Array.isArray(memory.metadata)
+            ? (memory.metadata as Record<string, unknown>)
+            : undefined,
       };
     }
 
@@ -69,7 +74,13 @@ export class CompressionService {
       compressionLevel: 1,
       compressionRatio: compressed.length / contentStr.length,
       timestamp: new Date(),
-      metadata: this.config.preserveMetadata ? memory.metadata || undefined : undefined,
+      metadata:
+        this.config.preserveMetadata &&
+        typeof memory.metadata === 'object' &&
+        memory.metadata !== null &&
+        !Array.isArray(memory.metadata)
+          ? (memory.metadata as Record<string, unknown>)
+          : undefined,
     };
   }
 
@@ -78,7 +89,7 @@ export class CompressionService {
    */
   private async performCompression(content: string, type: string): Promise<string> {
     // Different compression strategies based on type
-    switch (type) {
+    switch (type as string) {
       case 'code':
         return this.compressCode(content);
       case 'conversation':
@@ -265,7 +276,7 @@ export class CompressionService {
 
       originalSize += contentStr.length;
 
-      const compressedMemory = await this.compressMemory(memory as unknown as Memory);
+      const compressedMemory = await this.compressMemory(memory);
       compressedSize += compressedMemory.compressedContent.length;
       compressed.push(compressedMemory);
     }
@@ -311,13 +322,15 @@ export class CompressionService {
         .updateTable('memories')
         .set({
           content: comp.compressedContent,
-          metadata: JSON.stringify({
-            ...comp.metadata,
-            compressed: true,
-            compressionLevel: comp.compressionLevel,
-            compressionRatio: comp.compressionRatio,
-            originalSize: JSON.stringify(comp.originalContent).length,
-          }),
+          metadata: JSON.parse(
+            JSON.stringify({
+              ...comp.metadata,
+              compressed: true,
+              compressionLevel: comp.compressionLevel,
+              compressionRatio: comp.compressionRatio,
+              originalSize: JSON.stringify(comp.originalContent).length,
+            })
+          ) as JsonValue,
           updated_at: new Date(),
         })
         .where('id', '=', comp.originalId)
@@ -334,10 +347,12 @@ export class CompressionService {
     await this.db
       .updateTable('memories')
       .set({
-        metadata: JSON.stringify({
-          compressed: false,
-          needsRestoration: true,
-        }),
+        metadata: JSON.parse(
+          JSON.stringify({
+            compressed: false,
+            needsRestoration: true,
+          })
+        ) as JsonValue,
         updated_at: new Date(),
       })
       .where('id', '=', memoryId)
@@ -382,3 +397,5 @@ export class CompressionService {
     };
   }
 }
+
+export const compressionService = new CompressionService(db);

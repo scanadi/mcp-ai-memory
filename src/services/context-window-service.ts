@@ -98,7 +98,7 @@ export class ContextWindowService {
       .execute();
 
     if (recentMemories.length > 0) {
-      await this.populateWindow(windowState, recentMemories as unknown as Memory[]);
+      await this.populateWindow(windowState, recentMemories);
     }
 
     this.windowStates.set(userId, windowState);
@@ -121,7 +121,7 @@ export class ContextWindowService {
     }
 
     // Calculate token count
-    const tokens = this.estimateTokens(memory.content);
+    const tokens = this.estimateTokens(memory.content as string | Record<string, unknown>);
 
     // Check if compression is needed
     if (this.needsCompression(windowState, tokens)) {
@@ -188,7 +188,7 @@ export class ContextWindowService {
       .where('id', 'in', windowState.activeMemories)
       .execute();
 
-    return memories as unknown as Memory[];
+    return memories;
   }
 
   /**
@@ -200,9 +200,9 @@ export class ContextWindowService {
       memories.map((m) => ({
         id: m.id,
         createdAt: m.created_at,
-        accessedAt: m.accessed_at,
-        accessCount: m.access_count,
-        importanceScore: m.importance_score,
+        accessedAt: m.accessed_at || undefined,
+        accessCount: m.access_count || 0,
+        importanceScore: m.importance_score || 0.5,
       }))
     );
 
@@ -212,7 +212,7 @@ export class ContextWindowService {
       const memory = memories.find((m) => m.id === score.memoryId);
       if (!memory) continue;
 
-      const tokens = this.estimateTokens(memory.content);
+      const tokens = this.estimateTokens(memory.content as string | Record<string, unknown>);
       if (totalTokens + tokens > this.config.maxTokens) {
         break;
       }
@@ -249,10 +249,7 @@ export class ContextWindowService {
       .limit(Math.floor(windowState.activeMemories.length / 3)) // Compress oldest third
       .execute();
 
-    const compressed = await this.compressor.hierarchicalCompress(
-      memories as unknown as Memory[],
-      this.config.ageThresholds
-    );
+    const compressed = await this.compressor.hierarchicalCompress(memories, this.config.ageThresholds);
 
     // Update window state
     for (const comp of compressed) {
@@ -284,8 +281,8 @@ export class ContextWindowService {
         id: m.id,
         createdAt: m.created_at,
         accessedAt: m.accessed_at || undefined,
-        accessCount: m.access_count,
-        importanceScore: m.importance_score,
+        accessCount: m.access_count || 0,
+        importanceScore: m.importance_score || 0.5,
       }))
     );
 
@@ -326,7 +323,7 @@ export class ContextWindowService {
 
     let totalTokens = 0;
     for (const memory of memories) {
-      totalTokens += this.estimateTokens(memory.content);
+      totalTokens += this.estimateTokens(memory.content as string | Record<string, unknown>);
     }
 
     windowState.totalTokens = totalTokens;
@@ -346,7 +343,7 @@ export class ContextWindowService {
 
     if (memories.length > 0) {
       const dates = memories.map((m) => m.created_at.getTime());
-      const scores = memories.map((m) => m.importance_score);
+      const scores = memories.map((m) => m.importance_score ?? 0);
 
       windowState.metadata = {
         compressionRatio: windowState.compressedMemories.length / Math.max(windowState.activeMemories.length, 1),
@@ -417,7 +414,7 @@ export class ContextWindowService {
     // Re-populate window with new scores
     windowState.activeMemories = [];
     windowState.compressedMemories = [];
-    await this.populateWindow(windowState, memories as unknown as Memory[]);
+    await this.populateWindow(windowState, memories);
     await this.updateWindowMetadata(windowState);
   }
 

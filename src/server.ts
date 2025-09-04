@@ -18,14 +18,15 @@ import {
   BatchMemorySchema,
   ConsolidateMemorySchema,
   DeleteMemorySchema,
-  GraphSearchSchema,
   ListMemorySchema,
   SearchMemorySchema,
   StatsSchema,
   StoreMemorySchema,
   UpdateMemorySchema,
 } from './schemas/validation.js';
+import { decayService } from './services/decayService.js';
 import { MemoryService } from './services/memory-service.js';
+import { traversalService } from './services/traversalService.js';
 
 export class MemoryMcpServer {
   private server: Server;
@@ -258,7 +259,19 @@ export class MemoryMcpServer {
               to_memory_id: { type: 'string' },
               relation_type: {
                 type: 'string',
-                enum: ['references', 'contradicts', 'supports', 'extends'],
+                enum: [
+                  'references',
+                  'contradicts',
+                  'supports',
+                  'extends',
+                  'causes',
+                  'caused_by',
+                  'precedes',
+                  'follows',
+                  'part_of',
+                  'contains',
+                  'relates_to',
+                ],
               },
               strength: { type: 'number', minimum: 0, maximum: 1 },
             },
@@ -288,6 +301,82 @@ export class MemoryMcpServer {
               memory_id: { type: 'string' },
             },
             required: ['memory_id'],
+          },
+        },
+        {
+          name: 'memory_traverse',
+          description:
+            'TRAVERSE EXPLORE GRAPH WALK - Traverse memory graph using BFS/DFS from a starting memory. Includes filtering by relation types, memory types, tags, and depth limits. Keywords: traverse, explore, graph, walk, navigate, follow, path, connections, network',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              start_memory_id: { type: 'string' },
+              user_context: { type: 'string' },
+              algorithm: { type: 'string', enum: ['bfs', 'dfs'], default: 'bfs' },
+              max_depth: { type: 'number', minimum: 1, maximum: 5, default: 3 },
+              max_nodes: { type: 'number', minimum: 1, maximum: 1000, default: 100 },
+              relation_types: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  enum: [
+                    'references',
+                    'contradicts',
+                    'supports',
+                    'extends',
+                    'causes',
+                    'caused_by',
+                    'precedes',
+                    'follows',
+                    'part_of',
+                    'contains',
+                    'relates_to',
+                  ],
+                },
+              },
+              memory_types: { type: 'array', items: { type: 'string' } },
+              tags: { type: 'array', items: { type: 'string' } },
+              include_parent_links: { type: 'boolean', default: false },
+            },
+            required: ['start_memory_id', 'user_context'],
+          },
+        },
+        {
+          name: 'memory_decay_status',
+          description:
+            'DECAY STATUS LIFECYCLE STATE - Get decay status and lifecycle information for a memory including state, decay score, and preservation status. Keywords: decay, status, lifecycle, state, age, freshness, preservation, expiry',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              memory_id: { type: 'string' },
+            },
+            required: ['memory_id'],
+          },
+        },
+        {
+          name: 'memory_preserve',
+          description:
+            'PRESERVE PROTECT KEEP PIN - Preserve a memory from decay, optionally until a specific date. Keywords: preserve, protect, keep, pin, save, retain, bookmark, favorite',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              memory_id: { type: 'string' },
+              until: { type: 'string', format: 'date-time' },
+            },
+            required: ['memory_id'],
+          },
+        },
+        {
+          name: 'memory_graph_analysis',
+          description:
+            'GRAPH ANALYSIS CONNECTIVITY DEGREE - Analyze graph connectivity for a memory including degree metrics and relation type distribution. Keywords: graph analysis, connectivity, degree, network metrics, connections count',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              memory_id: { type: 'string' },
+              user_context: { type: 'string' },
+            },
+            required: ['memory_id', 'user_context'],
           },
         },
       ],
@@ -402,20 +491,6 @@ export class MemoryMcpServer {
             };
           }
 
-          case 'memory_graph_search': {
-            const validated = GraphSearchSchema.parse(args);
-            const results = await this.memoryService.graphSearch(validated);
-            const resultsWithoutEmbeddings = results.map(({ embedding, ...rest }) => rest);
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(resultsWithoutEmbeddings, null, 2),
-                },
-              ],
-            };
-          }
-
           case 'memory_consolidate': {
             const validated = ConsolidateMemorySchema.parse(args);
             const result = await this.memoryService.consolidate(validated);
@@ -446,7 +521,18 @@ export class MemoryMcpServer {
             const { from_memory_id, to_memory_id, relation_type, strength } = args as {
               from_memory_id: string;
               to_memory_id: string;
-              relation_type: 'references' | 'contradicts' | 'supports' | 'extends';
+              relation_type:
+                | 'references'
+                | 'contradicts'
+                | 'supports'
+                | 'extends'
+                | 'causes'
+                | 'caused_by'
+                | 'precedes'
+                | 'follows'
+                | 'part_of'
+                | 'contains'
+                | 'relates_to';
               strength?: number;
             };
             const result = await this.memoryService.createRelation(
@@ -489,6 +575,154 @@ export class MemoryMcpServer {
                 {
                   type: 'text',
                   text: JSON.stringify(relations, null, 2),
+                },
+              ],
+            };
+          }
+
+          case 'memory_traverse': {
+            const {
+              start_memory_id,
+              user_context,
+              algorithm = 'bfs',
+              max_depth = 3,
+              max_nodes = 100,
+              relation_types = [],
+              memory_types = [],
+              tags = [],
+              include_parent_links = false,
+            } = args as {
+              start_memory_id: string;
+              user_context: string;
+              algorithm?: 'bfs' | 'dfs';
+              max_depth?: number;
+              max_nodes?: number;
+              relation_types?: string[];
+              memory_types?: string[];
+              tags?: string[];
+              include_parent_links?: boolean;
+            };
+
+            const result = await traversalService.traverse({
+              startMemoryId: start_memory_id,
+              userContext: user_context,
+              algorithm,
+              maxDepth: max_depth,
+              maxNodes: max_nodes,
+              relationTypes: relation_types,
+              memoryTypes: memory_types,
+              tags,
+              includeParentLinks: include_parent_links,
+            });
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2),
+                },
+              ],
+            };
+          }
+
+          case 'memory_decay_status': {
+            const { memory_id } = args as { memory_id: string };
+            const status = await decayService.getDecayStatus(memory_id);
+
+            if (!status) {
+              throw new McpError(ErrorCode.InvalidParams, `Memory ${memory_id} not found`);
+            }
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(status, null, 2),
+                },
+              ],
+            };
+          }
+
+          case 'memory_preserve': {
+            const { memory_id, until } = args as { memory_id: string; until?: string };
+            const untilDate = until ? new Date(until) : undefined;
+
+            await decayService.preserveMemory(memory_id, untilDate);
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(
+                    {
+                      success: true,
+                      memory_id,
+                      preserved_until: untilDate?.toISOString() || 'indefinite',
+                    },
+                    null,
+                    2
+                  ),
+                },
+              ],
+            };
+          }
+
+          case 'memory_graph_analysis': {
+            const { memory_id, user_context } = args as { memory_id: string; user_context: string };
+            const analysis = await traversalService.getGraphAnalysis(memory_id, user_context);
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(analysis, null, 2),
+                },
+              ],
+            };
+          }
+
+          // Alias for backward compatibility
+          case 'memory_graph_search': {
+            // Redirect to memory_traverse
+            const {
+              start_memory_id,
+              user_context,
+              algorithm = 'bfs',
+              max_depth = 3,
+              max_nodes = 100,
+              relation_types = [],
+              memory_types = [],
+              tags = [],
+              include_parent_links = false,
+            } = args as {
+              start_memory_id: string;
+              user_context: string;
+              algorithm?: 'bfs' | 'dfs';
+              max_depth?: number;
+              max_nodes?: number;
+              relation_types?: string[];
+              memory_types?: string[];
+              tags?: string[];
+              include_parent_links?: boolean;
+            };
+
+            const result = await traversalService.traverse({
+              startMemoryId: start_memory_id,
+              userContext: user_context,
+              algorithm,
+              maxDepth: max_depth,
+              maxNodes: max_nodes,
+              relationTypes: relation_types,
+              memoryTypes: memory_types,
+              tags,
+              includeParentLinks: include_parent_links,
+            });
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2),
                 },
               ],
             };
@@ -718,7 +952,7 @@ export class MemoryMcpServer {
                       .map(
                         (s, i) =>
                           `${i + 1}. [${s.type}] (confidence: ${s.confidence})\n` +
-                          `   Tags: ${s.tags.join(', ')}\n` +
+                          `   Tags: ${(s.tags || []).join(', ')}\n` +
                           `   ${s.summary}...`
                       )
                       .join('\n\n'),

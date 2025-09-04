@@ -28,6 +28,22 @@ const EnvSchema = z.object({
   // Async processing - default to false for local-first operation
   ENABLE_ASYNC_PROCESSING: z.coerce.boolean().default(false),
   WORKER_CONCURRENCY: z.coerce.number().default(3),
+  // Decay settings
+  DECAY_WORKER_CONCURRENCY: z.coerce.number().default(2),
+  BASE_DECAY_RATE: z.coerce.number().default(0.01),
+  ACCESS_BOOST: z.coerce.number().default(0.1),
+  ARCHIVAL_THRESHOLD: z.coerce.number().default(0.1),
+  EXPIRATION_THRESHOLD: z.coerce.number().default(0.01),
+  PRESERVATION_TAGS: z.string().default('permanent,important,bookmark,favorite,pinned,preserved'),
+  RELATIONSHIP_BOOST: z.coerce.number().default(0.05),
+  ENABLE_DECAY: z.coerce.boolean().default(true),
+  // Feature flags
+  FEATURE_FLAGS: z
+    .object({
+      DECAY_DISABLED: z.coerce.boolean().default(false),
+      GRAPH_TRAVERSAL_ENABLED: z.coerce.boolean().default(true),
+    })
+    .default({ DECAY_DISABLED: false, GRAPH_TRAVERSAL_ENABLED: true }),
 });
 
 export const config = EnvSchema.parse(process.env);

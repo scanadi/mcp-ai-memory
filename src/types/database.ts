@@ -1,50 +1,43 @@
-import type { ColumnType, Generated, Insertable, Selectable, Updateable } from 'kysely';
+import type { Insertable, Selectable, Updateable } from 'kysely';
+import type { Memories, MemoryRelations } from './database-generated.js';
 
-export interface MemoryTable {
-  id: Generated<string>;
-  user_context: string;
-  content: ColumnType<Record<string, unknown>, string, string>; // JSONB
-  content_hash: string;
-  embedding: ColumnType<number[] | null, string | null, string | null>; // vector type (nullable for async)
-  embedding_dimension: ColumnType<number | null, number | undefined, number | undefined>; // Track dimension of each embedding
-  tags: string[];
-  type: string;
-  source: string;
-  confidence: number;
-  similarity_threshold: number;
-  created_at: ColumnType<Date, Date | undefined, never>;
-  updated_at: ColumnType<Date, Date | undefined, Date>;
-  accessed_at: ColumnType<Date, Date | undefined, Date>;
-  deleted_at: ColumnType<Date | null, Date | undefined, Date | undefined>;
-  access_count: Generated<number>;
+// Re-export the generated database interface
+export type { DB as Database } from './database-generated.js';
 
-  // New fields for v2
-  parent_id: string | null;
-  relation_type: 'extends' | 'contradicts' | 'supports' | 'references' | null;
-  cluster_id: string | null; // Changed from uuid to text to support numeric IDs
-  importance_score: number;
-  decay_rate: number;
-  metadata: ColumnType<Record<string, unknown> | null, string | null, string | null>; // JSONB for additional data
-  is_compressed: Generated<boolean>; // Whether content is compressed
-}
+// Map generated types to our naming convention
+export type MemoryTable = Memories;
+export type MemoryRelationTable = MemoryRelations;
 
-export interface MemoryRelationTable {
-  id: Generated<string>;
-  from_memory_id: string;
-  to_memory_id: string;
-  relation_type: 'references' | 'contradicts' | 'supports' | 'extends';
-  strength: number;
-  created_at: ColumnType<Date, Date | undefined, never>;
-}
-
-export interface Database {
-  memories: MemoryTable;
-  memory_relations: MemoryRelationTable;
-}
-
+// Type aliases for common operations
 export type Memory = Selectable<MemoryTable>;
 export type NewMemory = Insertable<MemoryTable>;
 export type MemoryUpdate = Updateable<MemoryTable>;
 export type MemoryRelation = Selectable<MemoryRelationTable>;
 export type NewMemoryRelation = Insertable<MemoryRelationTable>;
 export type MemoryRelationUpdate = Updateable<MemoryRelationTable>;
+
+// Specific type exports for better type safety
+export type MemoryState = 'active' | 'dormant' | 'archived' | 'expired';
+export type RelationType =
+  | 'references'
+  | 'contradicts'
+  | 'supports'
+  | 'extends'
+  | 'causes'
+  | 'caused_by'
+  | 'precedes'
+  | 'follows'
+  | 'part_of'
+  | 'contains'
+  | 'relates_to';
+export type MemoryType =
+  | 'fact'
+  | 'conversation'
+  | 'decision'
+  | 'insight'
+  | 'context'
+  | 'preference'
+  | 'task'
+  | 'error'
+  | 'merged'
+  | 'summary';
