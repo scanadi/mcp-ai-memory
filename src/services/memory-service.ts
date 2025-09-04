@@ -221,13 +221,16 @@ export class MemoryService {
     }
 
     // Apply similarity threshold and order by similarity
+    // Use the values from input (which should already have defaults from schema validation)
+    const threshold = input.threshold ?? config.DEFAULT_SIMILARITY_THRESHOLD; // Fallback to config if undefined
+    const limit = input.limit ?? 10; // Fallback default
     const results = await query
-      .where(sql`1 - (embedding::vector <=> ${embeddingString}::vector)`, '>=', input.threshold)
+      .where(sql`1 - (embedding::vector <=> ${embeddingString}::vector)`, '>=', threshold)
       .orderBy(sql`1 - (embedding::vector <=> ${embeddingString}::vector)`, 'desc')
-      .limit(input.limit)
+      .limit(limit)
       .execute();
 
-    console.log(`[MemoryService] Search found ${results.length} results with threshold ${input.threshold}`);
+    console.log(`[MemoryService] Search found ${results.length} results with threshold ${threshold}`);
 
     // Update access count for returned memories
     if (results.length > 0) {
